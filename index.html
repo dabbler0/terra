@@ -5,6 +5,7 @@
         border: 1px solid #000;
       }
     </style>
+    <link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.min.css"/>
   </head>
   <div id='images' style='display:none'>
     <img id='stone-image' src="assets/stone.png"/>
@@ -12,7 +13,13 @@
     <img id='grass-image' src="assets/grass.png"/>
   </div>
   <body>
-    <canvas id="viewport" width="500" height="500" style='background-color:#000'></canvas>
+    <center>
+      <canvas id="viewport" width="500" height="500" style='background-color:#000'></canvas>
+      <div>
+        <p>WASD. Mouse wheel to rotate camera. Click to place/remove stones.</p>
+        <p>A work in progress by <a href="http://dabbler0.github.io/hack-per-day">Anthony Bau</a></p>
+      </div>
+    </center>
   </body>
   <script src="build/browser.js"></script>
 </html>
