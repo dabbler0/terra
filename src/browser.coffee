@@ -619,7 +619,7 @@ PLAYER.cameraRotation = Math.PI / 4
 inventoryList = document.getElementById 'inventory-list'
 
 inventoryDivs = [] # TODO pretty hacky
-redrawInventory =- >
+redrawInventory = ->
   console.log 'changed once'
   inventoryList.innerHTML = ''
   inventoryDivs = []
