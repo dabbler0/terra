@@ -1,5 +1,5 @@
 !function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.terra=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var BOARD, Board, IdObject, Inventory, MOUSE_POS, Mob, Obstacle, PLAYER, Player, RANGE, RAW_MOUSE_POS, SIZE, SPEED, ShadowQueue, Terrain, Tile, Vector, aliveNeighbors, c, canvas, cell, col, ctx, dirt, grass, keysdown, neighbor, newFlags, oldFlags, s, stone, tick, tool, translateOKComponent, uns, updateMousePos, wiz, x, y, _i, _j, _k, _l, _len, _len1, _len2, _len3, _len4, _len5, _len6, _m, _n, _o, _p, _q, _r, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8,
+var Axe, BOARD, Board, ITEMSIZE, IdObject, Inventory, Item, MOB_INVENTORY_SIZE, MOUSE_POS, Mob, Obstacle, PLAYER, Pickaxe, Player, RANGE, RAW_MOUSE_POS, SIZE, SPEED, ShadowQueue, Stone, StoneObstacle, Terrain, Tile, TreeObstacle, Vector, Wood, WoodObstacle, aliveNeighbors, axe, c, canvas, cell, col, ctx, dirt, grass, inventoryDivs, inventoryList, keysdown, neighbor, newFlags, oldFlags, pickaxe, redrawInventory, s, stone, tick, translateOKComponent, treeSide, treeTop, uns, updateMousePos, wiz, wood, x, y, _i, _j, _k, _l, _len, _len1, _len2, _len3, _len4, _len5, _len6, _m, _n, _o, _p, _q, _r, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8,
   __hasProp = {}.hasOwnProperty,
   __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   __modulo = function(a, b) { return (a % b + +b) % b; };
@@ -16,11 +16,25 @@ grass = document.getElementById('grass-image');
 
 wiz = document.getElementById('wizard-image');
 
+pickaxe = document.getElementById('pickaxe-image');
+
+axe = document.getElementById('axe-image');
+
+treeSide = document.getElementById('tree-side-image');
+
+treeTop = document.getElementById('tree-top-image');
+
+wood = document.getElementById('wood-image');
+
 SPEED = 0.3;
 
 SIZE = 40;
 
 RANGE = 2;
+
+ITEMSIZE = 15;
+
+MOB_INVENTORY_SIZE = 20;
 
 IdObject = (function() {
   function IdObject() {
@@ -99,9 +113,11 @@ uns = function(s) {
 Obstacle = (function(_super) {
   __extends(Obstacle, _super);
 
-  function Obstacle(texture) {
-    this.texture = texture;
+  function Obstacle(sideTexture, topTexture) {
+    this.sideTexture = sideTexture;
+    this.topTexture = topTexture;
     Obstacle.__super__.constructor.apply(this, arguments);
+    this.drops = new Inventory(1);
   }
 
   return Obstacle;
@@ -120,16 +136,155 @@ Terrain = (function(_super) {
 
 })(IdObject);
 
-Inventory = (function(_super) {
-  __extends(Inventory, _super);
+Item = (function(_super) {
+  __extends(Item, _super);
 
-  function Inventory() {
-    this.contents = [];
+  function Item(name, texture) {
+    this.name = name;
+    this.texture = texture;
   }
 
-  return Inventory;
+  return Item;
 
 })(IdObject);
+
+StoneObstacle = (function(_super) {
+  __extends(StoneObstacle, _super);
+
+  function StoneObstacle() {
+    StoneObstacle.__super__.constructor.call(this, stone, stone);
+    this.drops.push(new Stone());
+  }
+
+  return StoneObstacle;
+
+})(Obstacle);
+
+Stone = (function(_super) {
+  __extends(Stone, _super);
+
+  function Stone() {
+    Stone.__super__.constructor.apply(this, arguments);
+    this.texture = stone;
+    this.name = 'Stone';
+    this._item_id = 0;
+  }
+
+  Stone.prototype.useOnTile = function(tile) {
+    if (tile.obstacle != null) {
+      return false;
+    } else {
+      tile.obstacle = new StoneObstacle();
+      return true;
+    }
+  };
+
+  return Stone;
+
+})(Item);
+
+TreeObstacle = (function(_super) {
+  __extends(TreeObstacle, _super);
+
+  function TreeObstacle() {
+    TreeObstacle.__super__.constructor.call(this, treeSide, treeTop);
+    this.drops.push(new Wood());
+  }
+
+  return TreeObstacle;
+
+})(Obstacle);
+
+WoodObstacle = (function(_super) {
+  __extends(WoodObstacle, _super);
+
+  function WoodObstacle() {
+    WoodObstacle.__super__.constructor.call(this, wood, wood);
+    this.drops.push(new Wood());
+  }
+
+  return WoodObstacle;
+
+})(Obstacle);
+
+Wood = (function(_super) {
+  __extends(Wood, _super);
+
+  function Wood() {
+    Wood.__super__.constructor.apply(this, arguments);
+    this.texture = wood;
+    this.name = 'Wood';
+    this._item_id = 1;
+  }
+
+  Wood.prototype.useOnTile = function(tile) {
+    if (tile.obstacle != null) {
+      return false;
+    } else {
+      tile.obstacle = new WoodObstacle();
+      return true;
+    }
+  };
+
+  return Wood;
+
+})(Item);
+
+Pickaxe = (function(_super) {
+  __extends(Pickaxe, _super);
+
+  function Pickaxe() {
+    Pickaxe.__super__.constructor.apply(this, arguments);
+    this.texture = pickaxe;
+    this.name = 'Pickaxe';
+    this._item_id = 2;
+    this.quality = 0.3;
+  }
+
+  Pickaxe.prototype.useOnTile = function(tile) {
+    if (tile.obstacle != null) {
+      if (tile.obstacle instanceof StoneObstacle) {
+        if (Math.random() < this.quality) {
+          tile.destroyObstacle();
+        }
+      } else if (Math.random() < this.quality / 10) {
+        tile.destroyObstacle();
+      }
+    }
+    return false;
+  };
+
+  return Pickaxe;
+
+})(Item);
+
+Axe = (function(_super) {
+  __extends(Axe, _super);
+
+  function Axe() {
+    Axe.__super__.constructor.apply(this, arguments);
+    this.texture = axe;
+    this.name = 'Axe';
+    this._item_id = 2;
+    this.quality = 0.5;
+  }
+
+  Axe.prototype.useOnTile = function(tile) {
+    if (tile.obstacle != null) {
+      if (tile.obstacle instanceof TreeObstacle || tile.obstacle instanceof WoodObstacle) {
+        if (Math.random() < this.quality) {
+          tile.destroyObstacle();
+        }
+      } else if (Math.random() < this.quality / 10) {
+        tile.destroyObstacle();
+      }
+    }
+    return false;
+  };
+
+  return Axe;
+
+})(Item);
 
 Obstacle = (function(_super) {
   __extends(Obstacle, _super);
@@ -176,30 +331,42 @@ Tile = (function(_super) {
     this.obstacle = obstacle;
     Tile.__super__.constructor.apply(this, arguments);
     this.seen = false;
-    this.inventory = new Inventory();
+    this.inventory = new Inventory(20);
   }
+
+  Tile.prototype.destroyObstacle = function() {
+    var el, _i, _len, _ref;
+    if (this.obstacle != null) {
+      _ref = this.obstacle.drops.contents;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        el = _ref[_i];
+        this.inventory.push(el);
+      }
+      return this.obstacle = null;
+    }
+  };
 
   Tile.prototype.render = function(ctx) {
     var drawCorner, img;
     if (this.obstacle != null) {
-      img = this.obstacle.texture;
       ctx.translate(canvas.width / 2, canvas.height / 2);
       ctx.rotate(PLAYER.cameraRotation);
       ctx.translate(SIZE * this.pos.x - PLAYER.pos.x * SIZE, SIZE * this.pos.y - PLAYER.pos.y * SIZE);
-      ctx.drawImage(img, -SIZE / 2, -SIZE / 2, SIZE, SIZE);
       ctx.rotate(-PLAYER.cameraRotation);
       ctx.translate(0, -SIZE);
       ctx.rotate(PLAYER.cameraRotation);
-      ctx.drawImage(img, -SIZE / 2, -SIZE / 2, SIZE, SIZE);
-      drawCorner = function(n) {
-        if ((__modulo(PLAYER.cameraRotation + n, 2 * Math.PI)) < Math.PI) {
-          ctx.save();
-          ctx.rotate(-PLAYER.cameraRotation);
-          ctx.transform(Math.cos(PLAYER.cameraRotation + n + Math.PI / 2), Math.sin(PLAYER.cameraRotation + n + Math.PI / 2), 0, 1, 0, 0);
-          ctx.drawImage(img, 0, 0, SIZE, SIZE);
-          return ctx.restore();
-        }
-      };
+      ctx.drawImage(this.obstacle.topTexture, -SIZE / 2, -SIZE / 2, SIZE, SIZE);
+      drawCorner = (function(_this) {
+        return function(n) {
+          if ((__modulo(PLAYER.cameraRotation + n, 2 * Math.PI)) < Math.PI) {
+            ctx.save();
+            ctx.rotate(-PLAYER.cameraRotation);
+            ctx.transform(Math.cos(PLAYER.cameraRotation + n + Math.PI / 2), Math.sin(PLAYER.cameraRotation + n + Math.PI / 2), 0, 1, 0, 0);
+            ctx.drawImage(_this.obstacle.sideTexture, 0, 0, SIZE, SIZE);
+            return ctx.restore();
+          }
+        };
+      })(this);
       ctx.translate(-SIZE / 2, -SIZE / 2);
       drawCorner(-Math.PI / 2);
       ctx.translate(SIZE, 0);
@@ -215,6 +382,10 @@ Tile = (function(_super) {
       ctx.rotate(PLAYER.cameraRotation);
       ctx.translate(SIZE * this.pos.x - PLAYER.pos.x * SIZE, SIZE * this.pos.y - PLAYER.pos.y * SIZE);
       ctx.drawImage(img, -SIZE / 2, -SIZE / 2, SIZE, SIZE);
+      ctx.rotate(-PLAYER.cameraRotation);
+      if (this.inventory.contents.length > 0) {
+        ctx.drawImage(this.inventory.contents[this.inventory.contents.length - 1].texture, -ITEMSIZE / 2, -ITEMSIZE / 2, ITEMSIZE, ITEMSIZE);
+      }
       return ctx.resetTransform();
     }
   };
@@ -227,15 +398,76 @@ Tile = (function(_super) {
 
 })(IdObject);
 
-Mob = (function() {
+Inventory = (function(_super) {
+  __extends(Inventory, _super);
+
+  function Inventory(size) {
+    this.size = size;
+    Inventory.__super__.constructor.apply(this, arguments);
+    this.contents = [];
+    this.handlers = {
+      'change': []
+    };
+  }
+
+  Inventory.prototype.push = function(item) {
+    var fn, _i, _len, _ref;
+    if (this.contents.length >= this.size) {
+      return false;
+    } else {
+      this.contents.push(item);
+      _ref = this.handlers.change;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        fn = _ref[_i];
+        fn();
+      }
+      return true;
+    }
+  };
+
+  Inventory.prototype.remove = function(item) {
+    var el, fn, i, _i, _j, _len, _len1, _ref, _ref1;
+    _ref = this.contents;
+    for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
+      el = _ref[i];
+      if (el === item) {
+        this.contents.splice(i, 1);
+        _ref1 = this.handlers.change;
+        for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+          fn = _ref1[_j];
+          fn();
+        }
+        return item;
+      }
+    }
+    return null;
+  };
+
+  Inventory.prototype.on = function(event, fn) {
+    var _base;
+    if ((_base = this.handlers)[event] == null) {
+      _base[event] = [];
+    }
+    return this.handlers[event].push(fn);
+  };
+
+  return Inventory;
+
+})(IdObject);
+
+Mob = (function(_super) {
+  __extends(Mob, _super);
+
   function Mob(board) {
     this.board = board;
+    Mob.__super__.constructor.apply(this, arguments);
     this.pos = c(0, 0);
+    this.inventory = new Inventory(MOB_INVENTORY_SIZE);
   }
 
   return Mob;
 
-})();
+})(IdObject);
 
 Player = (function(_super) {
   __extends(Player, _super);
@@ -245,6 +477,7 @@ Player = (function(_super) {
     Player.__super__.constructor.apply(this, arguments);
     this.cameraRotation = Math.PI / 4;
     this.seen = {};
+    this.usingItem = 0;
   }
 
   Player.prototype.render = function(ctx) {
@@ -456,13 +689,15 @@ Board = (function(_super) {
   };
 
   Board.prototype.getCoordinateArea = function(coord, max) {
-    var all, circle, el, r, _i, _j, _len;
+    var all, circle, el, r, _i, _j, _len, _ref, _ref1;
     all = [coord.round()];
     for (r = _i = 0; 0 <= max ? _i <= max : _i >= max; r = 0 <= max ? ++_i : --_i) {
       circle = this.getCircle(coord, r);
       for (_j = 0, _len = circle.length; _j < _len; _j++) {
         el = circle[_j];
-        all.push(el);
+        if ((0 <= (_ref = el.x) && _ref < this.dimensions.x) && (0 <= (_ref1 = el.y) && _ref1 < this.dimensions.y)) {
+          all.push(el);
+        }
       }
     }
     return all;
@@ -538,14 +773,18 @@ Board = (function(_super) {
     } else {
       x = coord.x, y = coord.y;
     }
-    return this.cells[x][y];
+    if ((0 <= x && x < this.dimensions.x) && (0 <= y && y < this.dimensions.y)) {
+      return this.cells[x][y];
+    } else {
+      return null;
+    }
   };
 
   return Board;
 
 })(IdObject);
 
-document.body.addEventListener('mousewheel', function(event) {
+canvas.addEventListener('mousewheel', function(event) {
   if (event.wheelDelta > 0) {
     return PLAYER.cameraRotation += 0.1;
   } else {
@@ -555,15 +794,35 @@ document.body.addEventListener('mousewheel', function(event) {
 
 keysdown = {};
 
-tool = false;
-
 document.body.addEventListener('keydown', function(event) {
+  var el, flagForPickup, i, item, playerTile, _i, _j, _len, _len1, _ref, _results;
   keysdown[event.which] = true;
-  if (event.which === 49) {
-    tool = false;
-  }
-  if (event.which === 50) {
-    return tool = true;
+  if (event.which === 90) {
+    item = PLAYER.inventory.contents[PLAYER.usingItem];
+    PLAYER.inventory.remove(item);
+    BOARD.get(PLAYER.pos.round()).inventory.push(item);
+    if (PLAYER.inventory.contents.length <= PLAYER.usingItem) {
+      PLAYER.usingItem = PLAYER.inventory.contents.length - 1;
+      return redrawInventory();
+    }
+  } else if (event.which === 88) {
+    playerTile = BOARD.get(PLAYER.pos.round());
+    flagForPickup = [];
+    _ref = playerTile.inventory.contents;
+    for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
+      el = _ref[i];
+      flagForPickup.push(el);
+    }
+    _results = [];
+    for (i = _j = 0, _len1 = flagForPickup.length; _j < _len1; i = ++_j) {
+      el = flagForPickup[i];
+      if (PLAYER.inventory.push(el)) {
+        _results.push(playerTile.inventory.remove(el));
+      } else {
+        _results.push(void 0);
+      }
+    }
+    return _results;
   }
 });
 
@@ -603,12 +862,17 @@ updateMousePos = function() {
 };
 
 canvas.addEventListener('click', function(ev) {
-  var best;
+  var best, item;
   best = PLAYER.getTarget();
-  if (tool) {
-    return best.obstacle = null;
-  } else {
-    return best.obstacle = new Obstacle(stone);
+  if (best.pos.distance(PLAYER.pos) >= 1) {
+    item = PLAYER.inventory.contents[PLAYER.usingItem];
+    if ((item != null) && item.useOnTile(best)) {
+      PLAYER.inventory.remove(item);
+      if (PLAYER.inventory.contents.length <= PLAYER.usingItem) {
+        PLAYER.usingItem = PLAYER.inventory.contents.length - 1;
+        return redrawInventory();
+      }
+    }
   }
 });
 
@@ -699,7 +963,7 @@ for (x = _o = 0, _len5 = oldFlags.length; _o < _len5; x = ++_o) {
     cell = col[y];
     if (cell) {
       BOARD.cells[x][y].terrain = new Terrain(dirt);
-      BOARD.cells[x][y].obstacle = new Obstacle(stone);
+      BOARD.cells[x][y].obstacle = new StoneObstacle();
     } else {
       BOARD.cells[x][y].terrain = new Terrain(dirt);
     }
@@ -708,8 +972,8 @@ for (x = _o = 0, _len5 = oldFlags.length; _o < _len5; x = ++_o) {
 
 for (x = _q = 0; _q < 500; x = ++_q) {
   for (y = _r = 250; _r < 500; y = ++_r) {
-    if (Math.random() < 0.05) {
-      BOARD.cells[x][y].obstacle = new Obstacle(dirt);
+    if (Math.random() < 0.05 * Math.pow(20, y / 250 - 1)) {
+      BOARD.cells[x][y].obstacle = new TreeObstacle();
       BOARD.cells[x][y].terrain = new Terrain(dirt);
     } else {
       BOARD.cells[x][y].terrain = new Terrain(grass);
@@ -723,52 +987,51 @@ PLAYER.pos = c(250, 250);
 
 PLAYER.cameraRotation = Math.PI / 4;
 
+inventoryList = document.getElementById('inventory-list');
+
+inventoryDivs = [];
+
+redrawInventory = function() {
+  var el, i, _fn, _len7, _ref9, _s;
+  console.log('changed once');
+  inventoryList.innerHTML = '';
+  inventoryDivs = [];
+  _ref9 = PLAYER.inventory.contents;
+  _fn = function(i) {
+    var div, inventoryCanvas, inventoryCtx, span;
+    div = document.createElement('div');
+    inventoryDivs.push(div);
+    span = document.createElement('span');
+    span.innerText = el.name;
+    inventoryCanvas = document.createElement('canvas');
+    inventoryCanvas.width = inventoryCanvas.height = ITEMSIZE;
+    inventoryCtx = inventoryCanvas.getContext('2d');
+    inventoryCtx.drawImage(el.texture, 0, 0, ITEMSIZE, ITEMSIZE);
+    div.appendChild(inventoryCanvas);
+    div.appendChild(span);
+    div.addEventListener('click', function() {
+      inventoryDivs[PLAYER.usingItem].style.background = 'none';
+      PLAYER.usingItem = i;
+      return inventoryDivs[PLAYER.usingItem].style.background = '#FF0';
+    });
+    return inventoryList.appendChild(div);
+  };
+  for (i = _s = 0, _len7 = _ref9.length; _s < _len7; i = ++_s) {
+    el = _ref9[i];
+    _fn(i);
+  }
+  if (inventoryDivs[PLAYER.usingItem] != null) {
+    return inventoryDivs[PLAYER.usingItem].style.background = '#FF0';
+  }
+};
+
+PLAYER.inventory.on('change', redrawInventory);
+
+PLAYER.inventory.push(new Pickaxe());
+
+PLAYER.inventory.push(new Axe());
+
 tick();
-
-
-/*
- * Helpers
-dedupe = (array) ->
-  result = []
-  for el, i in array
-    result.push el unless el in result
-  return result
-
- * Basic game entities
-class Tile
-  constructor: (@terrain, @pos) ->
-    @obstacle = null
-    @items = new Inventory @
-
-  render: (center) ->
-
-class Obstacle
-  constructor: ->
-    @hp = 1000
-    @parent = null # The tile on which this obstacle is placed
-
-  render: ->
-
- * An Inventory is a collection of items,
- * like that in a bag, chest, mob inventory, or on the floor
-class Inventory
-  constructor: (@parent) ->
-    @items = []
-
-class Item
-  constructor: ->
-    @parent = null # The Inventory in which this item is placed
-
-  render: ->
-
-class Mob
-  constructor: ->
-    @hp = 100
-    @inventory = new Inventory @
-    @pos = c 0, 0
-
-  render: (center) ->
- */
 
 
 },{}]},{},[1])(1)
