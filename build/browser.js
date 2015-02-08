@@ -1,5 +1,5 @@
 !function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.terra=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var Board, IdObject, Inventory, MOUSE_POS, Obstacle, POS, RANGE, RAW_MOUSE_POS, ROTATION, SIZE, SPEED, ShadowQueue, Terrain, Tile, Vector, aliveNeighbors, bad, board, c, canvas, cell, col, ctx, dirt, drawBlock, drawTile, getTarget, grass, keysdown, neighbor, newFlags, oldFlags, redraw, s, stone, stroke, tick, tool, translateOKComponent, uns, updateMousePos, wiz, x, y, _i, _j, _k, _l, _len, _len1, _len2, _len3, _len4, _len5, _len6, _m, _n, _o, _p, _q, _r, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8,
+var BOARD, Board, IdObject, Inventory, MOUSE_POS, Mob, Obstacle, PLAYER, Player, RANGE, RAW_MOUSE_POS, SIZE, SPEED, ShadowQueue, Terrain, Tile, Vector, aliveNeighbors, c, canvas, cell, col, ctx, dirt, grass, keysdown, neighbor, newFlags, oldFlags, s, stone, tick, tool, translateOKComponent, uns, updateMousePos, wiz, x, y, _i, _j, _k, _l, _len, _len1, _len2, _len3, _len4, _len5, _len6, _m, _n, _o, _p, _q, _r, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8,
   __hasProp = {}.hasOwnProperty,
   __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   __modulo = function(a, b) { return (a % b + +b) % b; };
@@ -96,7 +96,40 @@ uns = function(s) {
   return c(x, y);
 };
 
-POS = c(250, 250);
+Obstacle = (function(_super) {
+  __extends(Obstacle, _super);
+
+  function Obstacle(texture) {
+    this.texture = texture;
+    Obstacle.__super__.constructor.apply(this, arguments);
+  }
+
+  return Obstacle;
+
+})(IdObject);
+
+Terrain = (function(_super) {
+  __extends(Terrain, _super);
+
+  function Terrain(texture) {
+    this.texture = texture;
+    Terrain.__super__.constructor.apply(this, arguments);
+  }
+
+  return Terrain;
+
+})(IdObject);
+
+Inventory = (function(_super) {
+  __extends(Inventory, _super);
+
+  function Inventory() {
+    this.contents = [];
+  }
+
+  return Inventory;
+
+})(IdObject);
 
 Obstacle = (function(_super) {
   __extends(Obstacle, _super);
@@ -151,18 +184,18 @@ Tile = (function(_super) {
     if (this.obstacle != null) {
       img = this.obstacle.texture;
       ctx.translate(canvas.width / 2, canvas.height / 2);
-      ctx.rotate(ROTATION);
-      ctx.translate(SIZE * this.pos.x - POS.x * SIZE, SIZE * this.pos.y - POS.y * SIZE);
+      ctx.rotate(PLAYER.cameraRotation);
+      ctx.translate(SIZE * this.pos.x - PLAYER.pos.x * SIZE, SIZE * this.pos.y - PLAYER.pos.y * SIZE);
       ctx.drawImage(img, -SIZE / 2, -SIZE / 2, SIZE, SIZE);
-      ctx.rotate(-ROTATION);
+      ctx.rotate(-PLAYER.cameraRotation);
       ctx.translate(0, -SIZE);
-      ctx.rotate(ROTATION);
+      ctx.rotate(PLAYER.cameraRotation);
       ctx.drawImage(img, -SIZE / 2, -SIZE / 2, SIZE, SIZE);
       drawCorner = function(n) {
-        if ((__modulo(ROTATION + n, 2 * Math.PI)) < Math.PI) {
+        if ((__modulo(PLAYER.cameraRotation + n, 2 * Math.PI)) < Math.PI) {
           ctx.save();
-          ctx.rotate(-ROTATION);
-          ctx.transform(Math.cos(ROTATION + n + Math.PI / 2), Math.sin(ROTATION + n + Math.PI / 2), 0, 1, 0, 0);
+          ctx.rotate(-PLAYER.cameraRotation);
+          ctx.transform(Math.cos(PLAYER.cameraRotation + n + Math.PI / 2), Math.sin(PLAYER.cameraRotation + n + Math.PI / 2), 0, 1, 0, 0);
           ctx.drawImage(img, 0, 0, SIZE, SIZE);
           return ctx.restore();
         }
@@ -179,8 +212,8 @@ Tile = (function(_super) {
     } else {
       img = this.terrain.texture;
       ctx.translate(canvas.width / 2, canvas.height / 2);
-      ctx.rotate(ROTATION);
-      ctx.translate(SIZE * this.pos.x - POS.x * SIZE, SIZE * this.pos.y - POS.y * SIZE);
+      ctx.rotate(PLAYER.cameraRotation);
+      ctx.translate(SIZE * this.pos.x - PLAYER.pos.x * SIZE, SIZE * this.pos.y - PLAYER.pos.y * SIZE);
       ctx.drawImage(img, -SIZE / 2, -SIZE / 2, SIZE, SIZE);
       return ctx.resetTransform();
     }
@@ -193,6 +226,108 @@ Tile = (function(_super) {
   return Tile;
 
 })(IdObject);
+
+Mob = (function() {
+  function Mob(board) {
+    this.board = board;
+    this.pos = c(0, 0);
+  }
+
+  return Mob;
+
+})();
+
+Player = (function(_super) {
+  __extends(Player, _super);
+
+  function Player(board) {
+    this.board = board;
+    Player.__super__.constructor.apply(this, arguments);
+    this.cameraRotation = Math.PI / 4;
+    this.seen = {};
+  }
+
+  Player.prototype.render = function(ctx) {
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(this.cameraRotation);
+    ctx.strokeStyle = '#F00';
+    ctx.strokeRect(-SIZE / 2, -SIZE / 2, SIZE, SIZE);
+    ctx.rotate(-this.cameraRotation);
+    ctx.drawImage(wiz, -SIZE / 2, -SIZE, SIZE, SIZE);
+    return ctx.resetTransform();
+  };
+
+  Player.prototype.drawPerspective = function(ctx) {
+    var dir, renderable, renderables, target, visible, _i, _len;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    renderables = this.board.getTileArea(this.pos, canvas.width * Math.sqrt(2) / (2 * SIZE) + 1);
+    renderables.push(this);
+    dir = c(Math.sin(this.cameraRotation), Math.cos(this.cameraRotation));
+    renderables.sort((function(_this) {
+      return function(a, b) {
+        if ((a instanceof Mob) && (b instanceof Tile)) {
+          if (_this.pos.to(a.pos).scalarProject(dir) > _this.pos.to(b.pos).scalarProject(dir) || a.pos.distance(b.pos) <= 1) {
+            return 1;
+          } else {
+            return -1;
+          }
+        } else if ((a instanceof Tile) && (b instanceof Mob)) {
+          if (_this.pos.to(a.pos).scalarProject(dir) > _this.pos.to(b.pos).scalarProject(dir) && a.pos.distance(b.pos) > 1) {
+            return 1;
+          } else {
+            return -1;
+          }
+        } else {
+          if (_this.pos.to(a.pos).scalarProject(dir) > _this.pos.to(b.pos).scalarProject(dir)) {
+            return 1;
+          } else {
+            return -1;
+          }
+        }
+      };
+    })(this));
+    visible = this.board.shadowcast(this.pos, (function(n) {
+      return !n.passable();
+    }), 250 * Math.sqrt(2) / SIZE + 1);
+    for (_i = 0, _len = renderables.length; _i < _len; _i++) {
+      renderable = renderables[_i];
+      if (renderable.id in visible) {
+        this.seen[renderable.id] = true;
+        renderable.render(ctx);
+      } else if (renderable.id in this.seen) {
+        ctx.globalAlpha = 0.5;
+        renderable.render(ctx);
+        ctx.globalAlpha = 1;
+      } else if (renderable instanceof Mob) {
+        renderable.render(ctx);
+      }
+    }
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(this.cameraRotation);
+    target = this.getTarget();
+    ctx.strokeStyle = '#FF0';
+    ctx.strokeRect((target.pos.x - this.pos.x) * SIZE - SIZE / 2, (target.pos.y - this.pos.y) * SIZE - SIZE / 2, SIZE, SIZE);
+    return ctx.resetTransform();
+  };
+
+  Player.prototype.getTarget = function() {
+    var best, candidate, candidates, min, _i, _len;
+    candidates = this.board.getCoordinateArea(this.pos, RANGE);
+    best = null;
+    min = Infinity;
+    for (_i = 0, _len = candidates.length; _i < _len; _i++) {
+      candidate = candidates[_i];
+      if (candidate.distance(MOUSE_POS) < min && candidate.distance(this.pos) <= RANGE) {
+        best = candidate;
+        min = candidate.distance(MOUSE_POS);
+      }
+    }
+    return this.board.get(best.x, best.y);
+  };
+
+  return Player;
+
+})(Mob);
 
 exports.ShadowQueue = ShadowQueue = (function() {
   function ShadowQueue() {
@@ -298,8 +433,9 @@ Board = (function(_super) {
     }).call(this);
   }
 
-  Board.prototype.getCircle = function(x, y, r) {
-    var coords, i, _i, _j, _k, _l, _ref, _ref1, _ref2, _ref3;
+  Board.prototype.getCircle = function(_arg, r) {
+    var coords, i, x, y, _i, _j, _k, _l, _ref, _ref1, _ref2, _ref3;
+    x = _arg.x, y = _arg.y;
     x = Math.round(x);
     y = Math.round(y);
     r = Math.ceil(r);
@@ -319,11 +455,11 @@ Board = (function(_super) {
     return coords;
   };
 
-  Board.prototype.getArea = function(x, y, max) {
+  Board.prototype.getCoordinateArea = function(coord, max) {
     var all, circle, el, r, _i, _j, _len;
-    all = [];
+    all = [coord.round()];
     for (r = _i = 0; 0 <= max ? _i <= max : _i >= max; r = 0 <= max ? ++_i : --_i) {
-      circle = this.getCircle(x, y, r);
+      circle = this.getCircle(coord, r);
       for (_j = 0, _len = circle.length; _j < _len; _j++) {
         el = circle[_j];
         all.push(el);
@@ -332,22 +468,27 @@ Board = (function(_super) {
     return all;
   };
 
-  Board.prototype.shadowcast = function(coord, see, max, qp) {
-    var circle, end, i, key, queue, r, result, start, val, visible, x, y, _i, _len, _ref;
+  Board.prototype.getTileArea = function(coord, max) {
+    return this.getCoordinateArea(coord, max).map((function(_this) {
+      return function(x) {
+        return _this.get(x);
+      };
+    })(this));
+  };
+
+  Board.prototype.shadowcast = function(coord, see, max) {
+    var circle, end, i, queue, r, start, visible, x, y, _i, _len, _ref;
     if (max == null) {
       max = 10;
-    }
-    if (qp == null) {
-      qp = [];
     }
     coord = coord.round();
     visible = {};
     queue = new ShadowQueue();
     r = 0;
-    visible[s(coord.x, coord.y)] = true;
+    visible[this.get(coord).id] = true;
     while (!(r >= max)) {
       r++;
-      circle = this.getCircle(coord.x, coord.y, r);
+      circle = this.getCircle(coord, r);
       for (i = _i = 0, _len = circle.length; _i < _len; i = ++_i) {
         _ref = circle[i], x = _ref.x, y = _ref.y;
         if (!((0 <= x && x < this.dimensions.x) && (0 <= y && y < this.dimensions.y))) {
@@ -356,24 +497,16 @@ Board = (function(_super) {
         start = 360 * (2 * i - __modulo(1, 2 * circle.length)) / (2 * circle.length);
         end = 360 * (2 * i + __modulo(1, 2 * circle.length)) / (2 * circle.length);
         if (queue.check(start, end) === ShadowQueue.PARTIAL) {
-          visible[s(x, y)] = false;
+          visible[this.cells[x][y].id] = false;
         } else if (queue.check(start, end) === ShadowQueue.NONE) {
-          visible[s(x, y)] = true;
+          visible[this.cells[x][y].id] = true;
         }
         if (!see(this.cells[x][y])) {
           queue.emplace(start, end);
         }
       }
     }
-    qp.push(queue);
-    result = [];
-    for (key in visible) {
-      val = visible[key];
-      if (val) {
-        result.push(uns(key));
-      }
-    }
-    return result;
+    return visible;
   };
 
   Board.prototype.allCells = function() {
@@ -397,43 +530,107 @@ Board = (function(_super) {
     return strs.join('\n');
   };
 
-  Board.prototype.get = function(x, y) {
+  Board.prototype.get = function(coord, opt_y) {
+    var x, y;
+    if (opt_y != null) {
+      x = coord;
+      y = opt_y;
+    } else {
+      x = coord.x, y = coord.y;
+    }
     return this.cells[x][y];
-  };
-
-  Board.prototype.touches = function(vector) {
-    var highx, highy, lowx, lowy;
-    lowx = Math.floor(vector.x);
-    highx = Math.ceil(vector.x);
-    lowy = Math.floor(vector.y);
-    highy = Math.ceil(vector.y);
-    return [this.get(lowx, lowy), this.get(lowx, highy), this.get(highx, lowy), this.get(highx, highy)];
-  };
-
-  Board.prototype.on = function(vector) {
-    return this.get(Math.round(vector.x), Math.round(vector.y));
   };
 
   return Board;
 
 })(IdObject);
 
-stroke = function(ctx, path) {
-  var vector, _i, _len;
-  ctx.beginPath();
-  ctx.moveto(path[0].x, path[0].y);
-  for (_i = 0, _len = path.length; _i < _len; _i++) {
-    vector = path[_i];
-    ctx.moveto(vector.x, vector.y);
+document.body.addEventListener('mousewheel', function(event) {
+  if (event.wheelDelta > 0) {
+    return PLAYER.cameraRotation += 0.1;
+  } else {
+    return PLAYER.cameraRotation -= 0.1;
   }
-  return ctx.stroke();
+});
+
+keysdown = {};
+
+tool = false;
+
+document.body.addEventListener('keydown', function(event) {
+  keysdown[event.which] = true;
+  if (event.which === 49) {
+    tool = false;
+  }
+  if (event.which === 50) {
+    return tool = true;
+  }
+});
+
+document.body.addEventListener('keyup', function(event) {
+  return keysdown[event.which] = false;
+});
+
+translateOKComponent = function(pos, v) {
+  if (v.x > 0 && (BOARD.get(Math.ceil(pos.x + v.x), Math.floor(pos.y)).passable() || BOARD.get(Math.ceil(pos.x + v.x), Math.ceil(pos.y)).passable())) {
+    pos.x = Math.ceil(pos.x);
+  } else if (v.x < 0 && (BOARD.get(Math.floor(pos.x + v.x), Math.floor(pos.y)).passable() || BOARD.get(Math.floor(pos.x + v.x), Math.ceil(pos.y)).passable())) {
+    pos.x = Math.floor(pos.x);
+  } else {
+    pos.x += v.x;
+  }
+  if (v.y > 0 && (BOARD.get(Math.floor(pos.x), Math.ceil(pos.y + v.y)).passable() || BOARD.get(Math.ceil(pos.x), Math.ceil(pos.y + v.y)).passable())) {
+    return pos.y = Math.ceil(pos.y);
+  } else if (v.y < 0 && (BOARD.get(Math.floor(pos.x), Math.floor(pos.y + v.y)).passable() || BOARD.get(Math.ceil(pos.x), Math.floor(pos.y + v.y)).passable())) {
+    return pos.y = Math.floor(pos.y);
+  } else {
+    return pos.y += v.y;
+  }
 };
 
-drawBlock = function(img, rotation, vector) {};
+RAW_MOUSE_POS = c(0, 0);
 
-drawTile = function(img, rotation, vector) {};
+MOUSE_POS = c(0, 0);
 
-board = new Board(c(500, 500));
+canvas.addEventListener('mousemove', function(ev) {
+  RAW_MOUSE_POS = c(ev.offsetX - canvas.width / 2, ev.offsetY - canvas.width / 2);
+  return updateMousePos();
+});
+
+updateMousePos = function() {
+  MOUSE_POS = RAW_MOUSE_POS.rotate(-PLAYER.cameraRotation).mult(1 / SIZE);
+  return MOUSE_POS.translate(PLAYER.pos);
+};
+
+canvas.addEventListener('click', function(ev) {
+  var best;
+  best = PLAYER.getTarget();
+  if (tool) {
+    return best.obstacle = null;
+  } else {
+    return best.obstacle = new Obstacle(stone);
+  }
+});
+
+tick = function() {
+  if (keysdown[87]) {
+    translateOKComponent(PLAYER.pos, c(Math.sin(PLAYER.cameraRotation), Math.cos(PLAYER.cameraRotation)).mult(-SPEED));
+  }
+  if (keysdown[83]) {
+    translateOKComponent(PLAYER.pos, c(Math.sin(PLAYER.cameraRotation), Math.cos(PLAYER.cameraRotation)).mult(SPEED));
+  }
+  if (keysdown[65]) {
+    translateOKComponent(PLAYER.pos, c(-Math.cos(PLAYER.cameraRotation), Math.sin(PLAYER.cameraRotation)).mult(SPEED));
+  }
+  if (keysdown[68]) {
+    translateOKComponent(PLAYER.pos, c(-Math.cos(PLAYER.cameraRotation), Math.sin(PLAYER.cameraRotation)).mult(-SPEED));
+  }
+  updateMousePos();
+  PLAYER.drawPerspective(ctx);
+  return setTimeout(tick, 1000 / 50);
+};
+
+BOARD = new Board(c(500, 500));
 
 oldFlags = (function() {
   var _i, _results;
@@ -501,10 +698,10 @@ for (x = _o = 0, _len5 = oldFlags.length; _o < _len5; x = ++_o) {
   for (y = _p = 0, _len6 = col.length; _p < _len6; y = ++_p) {
     cell = col[y];
     if (cell) {
-      board.cells[x][y].terrain = new Terrain(dirt);
-      board.cells[x][y].obstacle = new Obstacle(stone);
+      BOARD.cells[x][y].terrain = new Terrain(dirt);
+      BOARD.cells[x][y].obstacle = new Obstacle(stone);
     } else {
-      board.cells[x][y].terrain = new Terrain(dirt);
+      BOARD.cells[x][y].terrain = new Terrain(dirt);
     }
   }
 }
@@ -512,197 +709,19 @@ for (x = _o = 0, _len5 = oldFlags.length; _o < _len5; x = ++_o) {
 for (x = _q = 0; _q < 500; x = ++_q) {
   for (y = _r = 250; _r < 500; y = ++_r) {
     if (Math.random() < 0.05) {
-      board.cells[x][y].obstacle = new Obstacle(dirt);
-      board.cells[x][y].terrain = new Terrain(dirt);
+      BOARD.cells[x][y].obstacle = new Obstacle(dirt);
+      BOARD.cells[x][y].terrain = new Terrain(dirt);
     } else {
-      board.cells[x][y].terrain = new Terrain(grass);
+      BOARD.cells[x][y].terrain = new Terrain(grass);
     }
   }
 }
 
-ROTATION = Math.PI / 4;
+PLAYER = new Player(BOARD);
 
-redraw = function() {
-  var area, coord, dir, queue, rendered, target, _len10, _len7, _len8, _len9, _s, _t, _u, _v;
-  ctx.clearRect(0, 0, 500, 500);
-  queue = [];
-  queue = board.shadowcast(POS, (function(n) {
-    return !n.passable();
-  }), 250 * Math.sqrt(2) / SIZE + 1);
-  rendered = {};
-  dir = c(Math.sin(ROTATION), Math.cos(ROTATION));
-  queue.sort(function(a, b) {
-    if (POS.to(a).scalarProject(dir) > POS.to(b).scalarProject(dir)) {
-      return 1;
-    } else {
-      return -1;
-    }
-  });
-  area = board.getArea(POS.x, POS.y, 250 * Math.sqrt(2) / SIZE + 1);
-  for (_s = 0, _len7 = queue.length; _s < _len7; _s++) {
-    coord = queue[_s];
-    if (!(POS.to(coord).scalarProject(dir) < 0.5)) {
-      continue;
-    }
-    rendered[s(coord.x, coord.y)] = true;
-    board.cells[coord.x][coord.y].seen = true;
-    board.cells[coord.x][coord.y].render(ctx);
-  }
-  ctx.globalAlpha = 0.5;
-  for (_t = 0, _len8 = area.length; _t < _len8; _t++) {
-    coord = area[_t];
-    if ((!(s(coord.x, coord.y) in rendered)) && POS.to(coord).scalarProject(dir) < 0.5) {
-      if (board.cells[coord.x][coord.y].seen) {
-        board.cells[coord.x][coord.y].render(ctx);
-      }
-    }
-  }
-  ctx.globalAlpha = 1;
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.rotate(ROTATION);
-  ctx.strokeStyle = '#F00';
-  ctx.strokeRect(-SIZE / 2, -SIZE / 2, SIZE, SIZE);
-  ctx.rotate(-ROTATION);
-  ctx.drawImage(wiz, -SIZE / 2, -SIZE, SIZE, SIZE);
-  ctx.resetTransform();
-  for (_u = 0, _len9 = queue.length; _u < _len9; _u++) {
-    coord = queue[_u];
-    if (!(POS.to(coord).scalarProject(dir) >= 0.5)) {
-      continue;
-    }
-    rendered[s(coord.x, coord.y)] = true;
-    board.cells[coord.x][coord.y].seen = true;
-    board.cells[coord.x][coord.y].render(ctx);
-  }
-  ctx.globalAlpha = 0.5;
-  for (_v = 0, _len10 = area.length; _v < _len10; _v++) {
-    coord = area[_v];
-    if ((!(s(coord.x, coord.y) in rendered)) && POS.to(coord).scalarProject(dir) >= 0.5) {
-      if (board.cells[coord.x][coord.y].seen) {
-        board.cells[coord.x][coord.y].render(ctx);
-      }
-    }
-  }
-  ctx.globalAlpha = 1;
-  ctx.translate(canvas.width / 2, canvas.height / 2);
-  ctx.rotate(ROTATION);
-  target = getTarget();
-  ctx.strokeStyle = '#FF0';
-  ctx.strokeRect((target.pos.x - POS.x) * SIZE - SIZE / 2, (target.pos.y - POS.y) * SIZE - SIZE / 2, SIZE, SIZE);
-  return ctx.resetTransform();
-};
+PLAYER.pos = c(250, 250);
 
-document.body.addEventListener('mousewheel', function(event) {
-  if (event.wheelDelta > 0) {
-    return ROTATION += 0.1;
-  } else {
-    return ROTATION -= 0.1;
-  }
-});
-
-keysdown = {};
-
-tool = false;
-
-document.body.addEventListener('keydown', function(event) {
-  keysdown[event.which] = true;
-  if (event.which === 49) {
-    tool = false;
-  }
-  if (event.which === 50) {
-    return tool = true;
-  }
-});
-
-document.body.addEventListener('keyup', function(event) {
-  return keysdown[event.which] = false;
-});
-
-bad = function(pos) {
-  var touch, touches, _len7, _s;
-  touches = board.touches(pos);
-  for (_s = 0, _len7 = touches.length; _s < _len7; _s++) {
-    touch = touches[_s];
-    if (touch.passable()) {
-      return true;
-    }
-  }
-  return false;
-};
-
-translateOKComponent = function(pos, v) {
-  if (v.x > 0 && (board.get(Math.ceil(pos.x + v.x), Math.floor(pos.y)).passable() || board.get(Math.ceil(pos.x + v.x), Math.ceil(pos.y)).passable())) {
-    pos.x = Math.ceil(pos.x);
-  } else if (v.x < 0 && (board.get(Math.floor(pos.x + v.x), Math.floor(pos.y)).passable() || board.get(Math.floor(pos.x + v.x), Math.ceil(pos.y)).passable())) {
-    pos.x = Math.floor(pos.x);
-  } else {
-    pos.x += v.x;
-  }
-  if (v.y > 0 && (board.get(Math.floor(pos.x), Math.ceil(pos.y + v.y)).passable() || board.get(Math.ceil(pos.x), Math.ceil(pos.y + v.y)).passable())) {
-    return pos.y = Math.ceil(pos.y);
-  } else if (v.y < 0 && (board.get(Math.floor(pos.x), Math.floor(pos.y + v.y)).passable() || board.get(Math.ceil(pos.x), Math.floor(pos.y + v.y)).passable())) {
-    return pos.y = Math.floor(pos.y);
-  } else {
-    return pos.y += v.y;
-  }
-};
-
-RAW_MOUSE_POS = c(0, 0);
-
-MOUSE_POS = c(0, 0);
-
-canvas.addEventListener('mousemove', function(ev) {
-  RAW_MOUSE_POS = c(ev.offsetX - canvas.width / 2, ev.offsetY - canvas.width / 2);
-  return updateMousePos();
-});
-
-updateMousePos = function() {
-  MOUSE_POS = RAW_MOUSE_POS.rotate(-ROTATION).mult(1 / SIZE);
-  return MOUSE_POS.translate(POS);
-};
-
-canvas.addEventListener('click', function(ev) {
-  var best;
-  best = getTarget();
-  if (tool) {
-    return best.obstacle = null;
-  } else {
-    return best.obstacle = new Obstacle(stone);
-  }
-});
-
-getTarget = function() {
-  var best, candidate, candidates, min, _len7, _s;
-  candidates = board.getArea(POS.x, POS.y, RANGE);
-  best = null;
-  min = Infinity;
-  for (_s = 0, _len7 = candidates.length; _s < _len7; _s++) {
-    candidate = candidates[_s];
-    if (candidate.distance(MOUSE_POS) < min && candidate.distance(POS) <= RANGE) {
-      best = candidate;
-      min = candidate.distance(MOUSE_POS);
-    }
-  }
-  return board.get(best.x, best.y);
-};
-
-tick = function() {
-  if (keysdown[87]) {
-    translateOKComponent(POS, c(Math.sin(ROTATION), Math.cos(ROTATION)).mult(-SPEED));
-  }
-  if (keysdown[83]) {
-    translateOKComponent(POS, c(Math.sin(ROTATION), Math.cos(ROTATION)).mult(SPEED));
-  }
-  if (keysdown[65]) {
-    translateOKComponent(POS, c(-Math.cos(ROTATION), Math.sin(ROTATION)).mult(SPEED));
-  }
-  if (keysdown[68]) {
-    translateOKComponent(POS, c(-Math.cos(ROTATION), Math.sin(ROTATION)).mult(-SPEED));
-  }
-  updateMousePos();
-  redraw();
-  return setTimeout(tick, 1000 / 50);
-};
+PLAYER.cameraRotation = Math.PI / 4;
 
 tick();
 
