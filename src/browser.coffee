@@ -5,10 +5,17 @@ stone = document.getElementById 'stone-image'
 dirt = document.getElementById 'dirt-image'
 grass = document.getElementById 'grass-image'
 wiz = document.getElementById 'wizard-image'
+pickaxe = document.getElementById 'pickaxe-image'
+axe = document.getElementById 'axe-image'
+treeSide = document.getElementById 'tree-side-image'
+treeTop = document.getElementById 'tree-top-image'
+wood = document.getElementById 'wood-image'
 
 SPEED = 0.3
 SIZE = 40
 RANGE = 2
+ITEMSIZE = 15
+MOB_INVENTORY_SIZE = 20
 
 class IdObject
   constructor: ->
@@ -50,18 +57,106 @@ uns = (s) ->
   [x, y] = s.split(' ').map (n) -> Number(n)
   return c x, y
 
-# Player position
 class Obstacle extends IdObject
-  constructor: (@texture) ->
+  constructor: (@sideTexture, @topTexture) ->
     super
+    @drops = new Inventory 1
 
 class Terrain extends IdObject
   constructor: (@texture) ->
     super
 
-class Inventory extends IdObject
+class Item extends IdObject
+  constructor: (@name, @texture) ->
+
+# Stone
+class StoneObstacle extends Obstacle
   constructor: ->
-    @contents = []
+    super stone, stone
+    @drops.push new Stone()
+
+class Stone extends Item
+  constructor: ->
+    super
+    @texture = stone
+    @name = 'Stone'
+    @_item_id = 0
+
+  useOnTile: (tile) ->
+    if tile.obstacle?
+      return false
+    else
+      tile.obstacle = new StoneObstacle()
+
+      # Now consumed:
+      return true
+
+# Dirt
+class TreeObstacle extends Obstacle
+  constructor: ->
+    super treeSide, treeTop
+    @drops.push new Wood()
+
+class WoodObstacle extends Obstacle
+  constructor: ->
+    super wood, wood
+    @drops.push new Wood()
+
+class Wood extends Item
+  constructor: ->
+    super
+    @texture = wood
+    @name = 'Wood'
+    @_item_id = 1
+
+  useOnTile: (tile) ->
+    if tile.obstacle?
+      return false
+    else
+      tile.obstacle = new WoodObstacle()
+
+      # Now consumed:
+      return true
+
+# Pickaxe
+class Pickaxe extends Item
+  constructor: ->
+    super
+    @texture = pickaxe
+    @name = 'Pickaxe'
+    @_item_id = 2
+    @quality = 0.3 # Not so good axe
+
+  useOnTile: (tile) ->
+    if tile.obstacle?
+      if (tile.obstacle instanceof StoneObstacle)
+        if Math.random() < @quality
+          tile.destroyObstacle()
+      else if Math.random() < @quality / 10
+        tile.destroyObstacle()
+
+    # Not consumed:
+    return false
+
+# Axe
+class Axe extends Item
+  constructor: ->
+    super
+    @texture = axe
+    @name = 'Axe'
+    @_item_id = 2
+    @quality = 0.5 # Not so good axe
+
+  useOnTile: (tile) ->
+    if tile.obstacle?
+      if (tile.obstacle instanceof TreeObstacle or tile.obstacle instanceof WoodObstacle)
+        if Math.random() < @quality
+          tile.destroyObstacle()
+      else if Math.random() < @quality / 10
+        tile.destroyObstacle()
+
+    # Not consumed:
+    return false
 
 class Obstacle extends IdObject
   constructor: (@texture) ->
@@ -79,42 +174,41 @@ class Tile extends IdObject
   constructor: (@board, @pos, @terrain, @obstacle) ->
     super
     @seen = false
-    @inventory = new Inventory()
+    @inventory = new Inventory 20
+
+  destroyObstacle: ->
+    if @obstacle?
+      for el in @obstacle.drops.contents
+        @inventory.push el
+      @obstacle = null
 
   render: (ctx) ->
     if @obstacle?
-      img = @obstacle.texture
-
       # Translate to the proper position
       ctx.translate canvas.width / 2, canvas.height / 2
       ctx.rotate PLAYER.cameraRotation
       ctx.translate SIZE * @pos.x - PLAYER.pos.x * SIZE, SIZE * @pos.y - PLAYER.pos.y * SIZE
-
-      # Draw the base square
-      ctx.drawImage img, -SIZE / 2, -SIZE / 2, SIZE, SIZE
-
-      # Move to the top
       ctx.rotate -PLAYER.cameraRotation
       ctx.translate 0, -SIZE
       ctx.rotate PLAYER.cameraRotation
 
       # Draw the top qquare
-      ctx.drawImage img, -SIZE / 2, -SIZE / 2, SIZE, SIZE
+      ctx.drawImage @obstacle.topTexture, -SIZE / 2, -SIZE / 2, SIZE, SIZE
 
       # Draw each of the four sides, when applicable.
-      # This entails doing a horizontal scaling and then
+      # Tis entails doing a horizontal scaling and then
       # a skew transformation.
       #
       # The percieved width of a side is always cos(r), where r
       # is the amount of PLAYER.cameraRotation from flat. Since the
       # length of the slanted side must always remain 1, this means
       # that we need to skew by sin(r).
-      drawCorner = (n) ->
+      drawCorner = (n) =>
         if ((PLAYER.cameraRotation + n) %% (2 * Math.PI)) < Math.PI
           ctx.save()
           ctx.rotate -PLAYER.cameraRotation
           ctx.transform Math.cos(PLAYER.cameraRotation + n + Math.PI / 2), Math.sin(PLAYER.cameraRotation + n + Math.PI / 2), 0, 1, 0, 0
-          ctx.drawImage img, 0, 0, SIZE, SIZE
+          ctx.drawImage @obstacle.sideTexture, 0, 0, SIZE, SIZE
           ctx.restore()
 
       ctx.translate -SIZE / 2, - SIZE / 2
@@ -133,19 +227,55 @@ class Tile extends IdObject
       ctx.rotate PLAYER.cameraRotation
       ctx.translate SIZE * @pos.x - PLAYER.pos.x * SIZE, SIZE * @pos.y - PLAYER.pos.y * SIZE
       ctx.drawImage img, -SIZE / 2, -SIZE / 2, SIZE, SIZE
+      # Draw first thing in the inventory, if existent
+      ctx.rotate -PLAYER.cameraRotation
+      if @inventory.contents.length > 0
+        ctx.drawImage @inventory.contents[@inventory.contents.length - 1].texture,
+          -ITEMSIZE / 2, -ITEMSIZE / 2, ITEMSIZE, ITEMSIZE
       ctx.resetTransform()
 
   passable: -> @obstacle?
 
-class Mob
+class Inventory extends IdObject
+  constructor: (@size) ->
+    super
+    @contents = []
+    @handlers = {
+      'change': []
+    }
+
+  push: (item) ->
+    if @contents.length >= @size
+      return false
+    else
+      @contents.push item
+      fn() for fn in @handlers.change
+      return true
+
+  remove: (item) ->
+    for el, i in @contents
+      if el is item
+        @contents.splice i, 1
+        fn() for fn in @handlers.change
+        return item
+    return null
+
+  on: (event, fn) ->
+    @handlers[event] ?= []
+    @handlers[event].push fn
+
+class Mob extends IdObject
   constructor: (@board) ->
+    super
     @pos = c 0, 0
+    @inventory = new Inventory MOB_INVENTORY_SIZE
 
 class Player extends Mob
   constructor: (@board) ->
     super
     @cameraRotation = Math.PI / 4
     @seen = {}
+    @usingItem = 0
 
   render: (ctx) ->
     ctx.translate canvas.width / 2, canvas.height / 2
@@ -297,7 +427,7 @@ class Board extends IdObject
     all = [coord.round()]
     for r in [0..max]
       circle = @getCircle coord, r
-      for el in circle
+      for el in circle when 0 <= el.x < @dimensions.x and 0 <= el.y < @dimensions.y
         all.push el
     return all
 
@@ -340,22 +470,36 @@ class Board extends IdObject
       x = coord; y = opt_y
     else
       {x, y} = coord
-    return @cells[x][y]
+    if 0 <= x < @dimensions.x and 0 <= y < @dimensions.y
+      return @cells[x][y]
+    else
+      return null
 
-document.body.addEventListener 'mousewheel', (event) ->
+canvas.addEventListener 'mousewheel', (event) ->
   if event.wheelDelta > 0
     PLAYER.cameraRotation += 0.1
   else
     PLAYER.cameraRotation -= 0.1
 
 keysdown = {}
-tool = false
 document.body.addEventListener 'keydown', (event) ->
   keysdown[event.which] = true
-  if event.which is 49
-    tool = false
-  if event.which is 50
-    tool = true
+
+  if event.which is 90
+    item = PLAYER.inventory.contents[PLAYER.usingItem]
+    PLAYER.inventory.remove item
+    BOARD.get(PLAYER.pos.round()).inventory.push item
+    if PLAYER.inventory.contents.length <= PLAYER.usingItem
+      PLAYER.usingItem = PLAYER.inventory.contents.length - 1
+      redrawInventory()
+  else if event.which is 88
+    playerTile = BOARD.get PLAYER.pos.round()
+    flagForPickup = []
+    for el, i in playerTile.inventory.contents
+      flagForPickup.push el
+    for el, i in flagForPickup
+      if PLAYER.inventory.push el
+        playerTile.inventory.remove el
 
 document.body.addEventListener 'keyup', (event) ->
   keysdown[event.which] = false
@@ -398,10 +542,13 @@ updateMousePos = ->
 
 canvas.addEventListener 'click', (ev) ->
   best = PLAYER.getTarget()
-  if tool
-    best.obstacle = null
-  else
-    best.obstacle = new Obstacle stone
+  if best.pos.distance(PLAYER.pos) >= 1
+    item = PLAYER.inventory.contents[PLAYER.usingItem]
+    if item? and item.useOnTile best
+      PLAYER.inventory.remove item
+      if PLAYER.inventory.contents.length <= PLAYER.usingItem
+        PLAYER.usingItem = PLAYER.inventory.contents.length - 1
+        redrawInventory()
 
 tick = ->
   if keysdown[87]
@@ -419,6 +566,8 @@ tick = ->
 
 # Generate board
 BOARD = new Board c(500, 500)
+
+# The caverns, generated by Game of Life
 oldFlags = (((Math.random() < 0.3) for y in [0...250]) for [0...500])
 newFlags = ((false for y in [0...250]) for [0...500])
 
@@ -448,14 +597,16 @@ for col, x in oldFlags
   for cell, y in col
     if cell
       BOARD.cells[x][y].terrain = new Terrain dirt
-      BOARD.cells[x][y].obstacle = new Obstacle stone
+      BOARD.cells[x][y].obstacle = new StoneObstacle()
     else
       BOARD.cells[x][y].terrain = new Terrain dirt
 
+
+# The forests, which get thicker as you go out
 for x in [0...500]
   for y in [250...500]
-    if Math.random() < 0.05
-      BOARD.cells[x][y].obstacle = new Obstacle dirt
+    if Math.random() < 0.05 * 20 ** (y / 250 - 1)
+      BOARD.cells[x][y].obstacle = new TreeObstacle()
       BOARD.cells[x][y].terrain = new Terrain dirt
     else
       BOARD.cells[x][y].terrain = new Terrain grass
@@ -464,49 +615,41 @@ for x in [0...500]
 PLAYER = new Player BOARD
 PLAYER.pos = c(250, 250)
 PLAYER.cameraRotation = Math.PI / 4
+
+inventoryList = document.getElementById 'inventory-list'
+
+inventoryDivs = [] # TODO pretty hacky
+redrawInventory =- >
+  console.log 'changed once'
+  inventoryList.innerHTML = ''
+  inventoryDivs = []
+  for el, i in PLAYER.inventory.contents then do (i) ->
+    div = document.createElement 'div'
+    inventoryDivs.push div
+
+    span = document.createElement 'span'
+    span.innerText = el.name
+
+    inventoryCanvas = document.createElement 'canvas'
+    inventoryCanvas.width = inventoryCanvas.height = ITEMSIZE
+    inventoryCtx = inventoryCanvas.getContext '2d'
+    inventoryCtx.drawImage el.texture, 0, 0, ITEMSIZE, ITEMSIZE
+
+    div.appendChild inventoryCanvas
+    div.appendChild span
+
+    div.addEventListener 'click', ->
+      inventoryDivs[PLAYER.usingItem].style.background = 'none'
+      PLAYER.usingItem = i
+      inventoryDivs[PLAYER.usingItem].style.background = '#FF0'
+
+    inventoryList.appendChild div
+
+  if inventoryDivs[PLAYER.usingItem]?
+    inventoryDivs[PLAYER.usingItem].style.background = '#FF0'
+PLAYER.inventory.on 'change', redrawInventory
+
+PLAYER.inventory.push new Pickaxe()
+PLAYER.inventory.push new Axe()
+
 tick()
-
-###
-# Helpers
-dedupe = (array) ->
-  result = []
-  for el, i in array
-    result.push el unless el in result
-  return result
-
-# Basic game entities
-class Tile
-  constructor: (@terrain, @pos) ->
-    @obstacle = null
-    @items = new Inventory @
-
-  render: (center) ->
-
-class Obstacle
-  constructor: ->
-    @hp = 1000
-    @parent = null # The tile on which this obstacle is placed
-
-  render: ->
-
-# An Inventory is a collection of items,
-# like that in a bag, chest, mob inventory, or on the floor
-class Inventory
-  constructor: (@parent) ->
-    @items = []
-
-class Item
-  constructor: ->
-    @parent = null # The Inventory in which this item is placed
-
-  render: ->
-
-class Mob
-  constructor: ->
-    @hp = 100
-    @inventory = new Inventory @
-    @pos = c 0, 0
-
-  render: (center) ->
-
-###
