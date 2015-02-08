@@ -6,24 +6,26 @@
         -webkit-user-select: none;
         overflow: hidden;
       }
-      canvas {
-        border: 1px solid #000;
-      }
       #inventory-list {
-        height: 600px;
-        width: 204px;
+        height: 160px;
+        width: 200px;
         overflow: auto;
       }
-      #inventory-list div {
+      #inventory-list table {
         width: 200px;
-        text-align: left;
-        padding: 2px;
+        height: 160px;
+        text-align: center;
       }
-      #inventory-list div span {
-        margin-left: 10px;
+      #inventory-list canvas {
+        background-color: #AAA;
+        border-radius: 2px;
+      }
+      #recipe-list canvas {
+        margin: 2px;
       }
     </style>
     <link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="bower_components/tooltipster/css/tooltipster.css"/>
   </head>
   <div id='images' style='display:none'>
     <img id='stone-image' src="assets/stone.png"/>
@@ -35,13 +37,16 @@
     <img id='tree-top-image' src="assets/tree-top.png"/>
     <img id='tree-side-image' src="assets/tree-side.png"/>
     <img id='wood-image' src="assets/wood.png"/>
+    <img id='battle-axe-image' src="assets/battle-axe.png"/>
+    <img id='sword-image' src="assets/sword.png"/>
   </div>
   <body>
     <center>
-      <table style='border: 1px solid black'>
+      <table style='border-radius: 5px; overflow: hidden;'>
         <tr>
-          <td>
-            <div id='inventory-list'></div>
+          <td style='background-color: #777; vertical-align: top; width: 200px;'>
+            <center id='inventory-list'></center>
+            <center id='recipe-list'></center>
           </td>
           <td><canvas id="viewport" width="600" height="600" style='background-color:#000'></canvas></td>
       </table>
@@ -51,5 +56,7 @@
       </div>
     </center>
   </body>
+  <script src="bower_components/jquery/dist/jquery.min.js"></script>
+  <script src="bower_components/tooltipster/js/jquery.tooltipster.min.js"></script>
   <script src="build/browser.js"></script>
 </html>

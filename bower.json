@@ -15,6 +15,7 @@
     "tests"
   ],
   "dependencies": {
-    "bootstrap": "~3.3.2"
+    "bootstrap": "~3.3.2",
+    "tooltipster": "~3.3.0"
   }
 }
