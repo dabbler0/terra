@@ -4,6 +4,7 @@
       body {
         user-select: none;
         -webkit-user-select: none;
+        overflow: hidden;
       }
       canvas {
         border: 1px solid #000;
@@ -19,7 +20,13 @@
   </div>
   <body>
     <center>
-      <canvas id="viewport" width="500" height="500" style='background-color:#000'></canvas>
+      <table>
+        <tr>
+          <td>
+            <div id='invent_list'></div>
+          </td>
+          <td><canvas id="viewport" width="600" height="600" style='background-color:#000'></canvas></td>
+      </table>
       <div>
         <p>WASD. Mouse wheel to rotate camera. Click to place/remove stones.</p>
         <p>A work in progress by <a href="http://dabbler0.github.io/hack-per-day">Anthony Bau</a></p>
