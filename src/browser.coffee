@@ -1,10 +1,13 @@
 canvas = document.getElementById 'viewport'
 ctx = canvas.getContext '2d'
-img = document.getElementById 'stone-image'
+stone = document.getElementById 'stone-image'
+dirt = document.getElementById 'dirt-image'
 grass = document.getElementById 'grass-image'
+wiz = document.getElementById 'wizard-image'
 
 SPEED = 0.3
 SIZE = 40
+RANGE = 2
 
 class IdObject
   constructor: ->
@@ -49,9 +52,79 @@ uns = (s) ->
 # Player position
 POS = c(250, 250)
 
+class Obstacle extends IdObject
+  constructor: (@texture) ->
+    super
+
+class Terrain extends IdObject
+  constructor: (@texture) ->
+    super
+
+class Inventory extends IdObject
+  constructor: ->
+    @contents = []
+
 class Tile extends IdObject
-  constructor: (@board, @pos, @hasObstacle) ->
+  constructor: (@board, @pos, @terrain, @obstacle) ->
+    super
     @seen = false
+    @inventory = new Inventory()
+
+  render: (ctx) ->
+    if @obstacle?
+      img = @obstacle.texture
+
+      # Translate to the proper position
+      ctx.translate canvas.width / 2, canvas.height / 2
+      ctx.rotate ROTATION
+      ctx.translate SIZE * @pos.x - POS.x * SIZE, SIZE * @pos.y - POS.y * SIZE
+
+      # Draw the base square
+      ctx.drawImage img, -SIZE / 2, -SIZE / 2, SIZE, SIZE
+
+      # Move to the top
+      ctx.rotate -ROTATION
+      ctx.translate 0, -SIZE
+      ctx.rotate ROTATION
+
+      # Draw the top qquare
+      ctx.drawImage img, -SIZE / 2, -SIZE / 2, SIZE, SIZE
+
+      # Draw each of the four sides, when applicable.
+      # This entails doing a horizontal scaling and then
+      # a skew transformation.
+      #
+      # The percieved width of a side is always cos(r), where r
+      # is the amount of ROTATION from flat. Since the
+      # length of the slanted side must always remain 1, this means
+      # that we need to skew by sin(r).
+      drawCorner = (n) ->
+        if ((ROTATION + n) %% (2 * Math.PI)) < Math.PI
+          ctx.save()
+          ctx.rotate -ROTATION
+          ctx.transform Math.cos(ROTATION + n + Math.PI / 2), Math.sin(ROTATION + n + Math.PI / 2), 0, 1, 0, 0
+          ctx.drawImage img, 0, 0, SIZE, SIZE
+          ctx.restore()
+
+      ctx.translate -SIZE / 2, - SIZE / 2
+      drawCorner -Math.PI / 2
+      ctx.translate SIZE, 0
+      drawCorner 0
+      ctx.translate 0, SIZE
+      drawCorner Math.PI / 2
+      ctx.translate -SIZE, 0
+      drawCorner Math.PI
+      ctx.resetTransform()
+    else
+      img = @terrain.texture
+
+      ctx.translate canvas.width / 2, canvas.height / 2
+      ctx.rotate ROTATION
+      ctx.translate SIZE * @pos.x - POS.x * SIZE, SIZE * @pos.y - POS.y * SIZE
+      ctx.drawImage img, -SIZE / 2, -SIZE / 2, SIZE, SIZE
+      ctx.resetTransform()
+
+  passable: -> @obstacle?
 
 exports.ShadowQueue = class ShadowQueue
   constructor: ->
@@ -109,7 +182,7 @@ ShadowQueue.NONE = 'NONE'
 class Board extends IdObject
   constructor: (@dimensions) ->
     super
-    @cells = ((new Tile(@, c(i, j), Math.random() < 0.3) for j in [0...@dimensions.y]) for i in [0...@dimensions.x])
+    @cells = ((new Tile(@, c(i, j), null, null) for j in [0...@dimensions.y]) for i in [0...@dimensions.x])
 
   getCircle: (x, y, r) ->
     x = Math.round(x); y = Math.round(y)
@@ -187,149 +260,191 @@ stroke = (ctx, path) ->
     ctx.moveto vector.x, vector.y
   ctx.stroke()
 
-drawBlock = (rotation, vector) ->
-  ctx.translate canvas.width / 2, canvas.height / 2
-  ctx.rotate rotation
-  ctx.translate vector.x - POS.x * SIZE, vector.y - POS.y * SIZE
-  ctx.drawImage img, -SIZE / 2, -SIZE / 2, SIZE, SIZE
-  #ctx.strokeRect -SIZE / 2, -SIZE / 2, SIZE, SIZE
-  ctx.rotate -rotation
+drawBlock = (img, rotation, vector) ->
 
-  ctx.translate 0, -SIZE
-  ctx.rotate rotation
-  ctx.drawImage img, -SIZE / 2, -SIZE / 2, SIZE, SIZE
-  #ctx.strokeRect -SIZE / 2, -SIZE / 2, SIZE, SIZE
-
-  drawCorner = (n) ->
-    if ((rotation + n) %% (2 * Math.PI)) < Math.PI
-      ctx.save()
-      ctx.rotate -rotation
-      ctx.transform Math.cos(rotation + n + Math.PI / 2), Math.sin(rotation + n + Math.PI / 2), 0, 1, 0, 0
-      ctx.drawImage img, 0, 0, SIZE, SIZE
-      ctx.restore()
-
-  ctx.translate -SIZE / 2, - SIZE / 2
-  drawCorner -Math.PI / 2
-  ctx.translate SIZE, 0
-  drawCorner 0
-  ctx.translate 0, SIZE
-  drawCorner Math.PI / 2
-  ctx.translate -SIZE, 0
-  drawCorner Math.PI
-  ctx.resetTransform()
-
-drawTile = (rotation, vector) ->
-  ctx.translate canvas.width / 2, canvas.height / 2
-  ctx.rotate rotation
-  ctx.translate vector.x - POS.x * SIZE, vector.y - POS.y * SIZE
-  ctx.drawImage grass, -SIZE / 2, -SIZE / 2, SIZE, SIZE
-  ctx.rotate -rotation
-  ctx.resetTransform()
+drawTile = (img, rotation, vector) ->
 
 # Might need quadtree
 board = new Board c 500, 500
+oldFlags = (((Math.random() < 0.3) for y in [0...250]) for [0...500])
+newFlags = ((false for y in [0...250]) for [0...500])
 
-rot = Math.PI / 4
+for [1..30]
+  for col, x in oldFlags
+    for cell, y in col
+      aliveNeighbors = 0
+      aliveNeighbors++ for neighbor in [oldFlags[x + 1]?[y],
+        oldFlags[x]?[y + 1],
+        oldFlags[x + 1]?[y + 1],
+        oldFlags[x + 1]?[y - 1],
+        oldFlags[x - 1]?[y + 1],
+        oldFlags[x - 1]?[y - 1],
+        oldFlags[x - 1]?[y],
+        oldFlags[x]?[y - 1]] when neighbor
+
+      if aliveNeighbors in [2, 3]
+        newFlags[x][y] = true
+      else
+        newFlags[x][y] = false
+
+  for col, x in newFlags
+    for cell, y in col
+      oldFlags[x][y] = cell
+
+for col, x in oldFlags
+  for cell, y in col
+    if cell
+      board.cells[x][y].terrain = new Terrain dirt
+      board.cells[x][y].obstacle = new Obstacle stone
+    else
+      board.cells[x][y].terrain = new Terrain dirt
+
+for x in [0...500]
+  for y in [250...500]
+    if Math.random() < 0.05
+      board.cells[x][y].obstacle = new Obstacle dirt
+      board.cells[x][y].terrain = new Terrain dirt
+    else
+      board.cells[x][y].terrain = new Terrain grass
+
+ROTATION = Math.PI / 4
 redraw = ->
   ctx.clearRect 0, 0, 500, 500
   queue = []
 
-  ctx.globalAlpha = 0.5
-  area = board.getArea POS.x, POS.y,  250 * Math.sqrt(2) / SIZE + 1
-  for coord in area
-    if board.cells[coord.x][coord.y].seen
-      if board.cells[coord.x][coord.y].hasObstacle
-        drawBlock rot, coord.mult(SIZE)
-      else
-        drawTile rot, coord.mult(SIZE)
+  queue = board.shadowcast POS, ((n) -> not n.passable()), 250 * Math.sqrt(2) / SIZE + 1
+  rendered = {}
 
-  ctx.globalAlpha = 1
-
-  queue = board.shadowcast POS, ((n) -> not n.hasObstacle), 250 * Math.sqrt(2) / SIZE + 1
-
-  dir = c Math.sin(rot), Math.cos(rot)
+  dir = c Math.sin(ROTATION), Math.cos(ROTATION)
   queue.sort (a, b) ->
     if POS.to(a).scalarProject(dir) > POS.to(b).scalarProject(dir)
       return 1
     else
       return -1
+  area = board.getArea POS.x, POS.y,  250 * Math.sqrt(2) / SIZE + 1
 
-  for coord in queue
+  for coord in queue when POS.to(coord).scalarProject(dir) < 0.5
+    rendered[s(coord.x, coord.y)] = true
     board.cells[coord.x][coord.y].seen = true
-    if board.cells[coord.x][coord.y].hasObstacle
-      drawBlock rot, coord.mult(SIZE)
-    else
-      drawTile rot, coord.mult(SIZE)
+    board.cells[coord.x][coord.y].render ctx
+
+  ctx.globalAlpha = 0.5
+  for coord in area when (s(coord.x, coord.y) not of rendered) and  POS.to(coord).scalarProject(dir) < 0.5
+    if board.cells[coord.x][coord.y].seen
+      board.cells[coord.x][coord.y].render ctx
+  ctx.globalAlpha = 1
 
   ctx.translate canvas.width / 2, canvas.height / 2
-  ctx.rotate rot
+  ctx.rotate ROTATION
   ctx.strokeStyle = '#F00'
   ctx.strokeRect -SIZE / 2, -SIZE / 2, SIZE, SIZE
+  ctx.rotate -ROTATION
+  ctx.drawImage wiz, -SIZE/2, -SIZE, SIZE, SIZE
+  ctx.resetTransform()
+
+  for coord in queue when POS.to(coord).scalarProject(dir) >= 0.5
+    rendered[s(coord.x, coord.y)] = true
+    board.cells[coord.x][coord.y].seen = true
+    board.cells[coord.x][coord.y].render ctx
+
+  ctx.globalAlpha = 0.5
+  for coord in area when (s(coord.x, coord.y) not of rendered) and POS.to(coord).scalarProject(dir) >= 0.5
+    if board.cells[coord.x][coord.y].seen
+      board.cells[coord.x][coord.y].render ctx
+  ctx.globalAlpha = 1
+
+  ctx.translate canvas.width / 2, canvas.height / 2
+  ctx.rotate ROTATION
+  target = getTarget()
+  ctx.strokeStyle = '#FF0'
+  ctx.strokeRect (target.pos.x - POS.x) * SIZE - SIZE/2, (target.pos.y - POS.y) * SIZE - SIZE/2, SIZE, SIZE
   ctx.resetTransform()
 
 document.body.addEventListener 'mousewheel', (event) ->
   if event.wheelDelta > 0
-    rot += 0.1
+    ROTATION += 0.1
   else
-    rot -= 0.1
+    ROTATION -= 0.1
 
 keysdown = {}
+tool = false
 document.body.addEventListener 'keydown', (event) ->
   keysdown[event.which] = true
+  if event.which is 49
+    tool = false
+  if event.which is 50
+    tool = true
 document.body.addEventListener 'keyup', (event) ->
   keysdown[event.which] = false
 
 bad = (pos) ->
   touches = board.touches pos
   for touch in touches
-    if touch.hasObstacle
+    if touch.passable()
       return true
   return false
 
 translateOKComponent = (pos, v) ->
   if v.x > 0 and (
-      board.get(Math.ceil(pos.x + v.x), Math.floor(pos.y)).hasObstacle or
-      board.get(Math.ceil(pos.x + v.x), Math.ceil(pos.y)).hasObstacle
+      board.get(Math.ceil(pos.x + v.x), Math.floor(pos.y)).passable() or
+      board.get(Math.ceil(pos.x + v.x), Math.ceil(pos.y)).passable()
     )
     pos.x = Math.ceil pos.x
   else if v.x < 0 and (
-      board.get(Math.floor(pos.x + v.x), Math.floor(pos.y)).hasObstacle or
-      board.get(Math.floor(pos.x + v.x), Math.ceil(pos.y)).hasObstacle
+      board.get(Math.floor(pos.x + v.x), Math.floor(pos.y)).passable() or
+      board.get(Math.floor(pos.x + v.x), Math.ceil(pos.y)).passable()
     )
     pos.x = Math.floor pos.x
   else
     pos.x += v.x
   if v.y > 0 and (
-      board.get(Math.floor(pos.x), Math.ceil(pos.y + v.y)).hasObstacle or
-      board.get(Math.ceil(pos.x), Math.ceil(pos.y + v.y)).hasObstacle
+      board.get(Math.floor(pos.x), Math.ceil(pos.y + v.y)).passable() or
+      board.get(Math.ceil(pos.x), Math.ceil(pos.y + v.y)).passable()
     )
     pos.y = Math.ceil pos.y
   else if v.y < 0 and (
-      board.get(Math.floor(pos.x), Math.floor(pos.y + v.y)).hasObstacle or
-      board.get(Math.ceil(pos.x), Math.floor(pos.y + v.y)).hasObstacle
+      board.get(Math.floor(pos.x), Math.floor(pos.y + v.y)).passable() or
+      board.get(Math.ceil(pos.x), Math.floor(pos.y + v.y)).passable()
     )
     pos.y = Math.floor pos.y
   else
     pos.y += v.y
 
+RAW_MOUSE_POS = c 0, 0
+MOUSE_POS = c 0, 0
+canvas.addEventListener 'mousemove', (ev) ->
+  RAW_MOUSE_POS = c ev.offsetX - canvas.width / 2, ev.offsetY - canvas.width / 2
+  updateMousePos()
+
+updateMousePos = ->
+  MOUSE_POS = RAW_MOUSE_POS.rotate(-ROTATION).mult 1 / SIZE
+  MOUSE_POS.translate POS
+
 canvas.addEventListener 'click', (ev) ->
-  rawCoord = c ev.offsetX - canvas.width / 2, ev.offsetY - canvas.width / 2
-  coord = rawCoord.rotate -rot
-  coord.translate POS.mult(SIZE)
-  result = coord.mult(1 / SIZE).round()
-  console.log 'resultant coord', result, POS
-  tile = board.get(result.x, result.y)
-  tile.hasObstacle = not tile.hasObstacle
+  best = getTarget()
+  if tool
+    best.obstacle = null
+  else
+    best.obstacle = new Obstacle stone
+
+getTarget = ->
+  candidates = board.getArea POS.x, POS.y, RANGE
+  best = null; min = Infinity
+  for candidate in candidates
+    if candidate.distance(MOUSE_POS) < min and candidate.distance(POS) <= RANGE
+      best = candidate; min = candidate.distance(MOUSE_POS)
+  return board.get best.x, best.y
 
 tick = ->
   if keysdown[87]
-    translateOKComponent POS, c(Math.sin(rot), Math.cos(rot)).mult(-SPEED)
+    translateOKComponent POS, c(Math.sin(ROTATION), Math.cos(ROTATION)).mult(-SPEED)
   if keysdown[83]
-    translateOKComponent POS, c(Math.sin(rot), Math.cos(rot)).mult(SPEED)
+    translateOKComponent POS, c(Math.sin(ROTATION), Math.cos(ROTATION)).mult(SPEED)
   if keysdown[65]
-    translateOKComponent POS, c(-Math.cos(rot), Math.sin(rot)).mult(SPEED)
+    translateOKComponent POS, c(-Math.cos(ROTATION), Math.sin(ROTATION)).mult(SPEED)
   if keysdown[68]
-    translateOKComponent POS, c(-Math.cos(rot), Math.sin(rot)).mult(-SPEED)
+    translateOKComponent POS, c(-Math.cos(ROTATION), Math.sin(ROTATION)).mult(-SPEED)
+  updateMousePos()
 
   redraw()
   setTimeout tick, 1000 / 50
