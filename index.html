@@ -9,6 +9,19 @@
       canvas {
         border: 1px solid #000;
       }
+      #inventory-list {
+        height: 600px;
+        width: 204px;
+        overflow: auto;
+      }
+      #inventory-list div {
+        width: 200px;
+        text-align: left;
+        padding: 2px;
+      }
+      #inventory-list div span {
+        margin-left: 10px;
+      }
     </style>
     <link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.min.css"/>
   </head>
@@ -17,18 +30,23 @@
     <img id='wizard-image' src="assets/wizard.png"/>
     <img id='dirt-image' src="assets/dirt.png"/>
     <img id='grass-image' src="assets/grass.png"/>
+    <img id='pickaxe-image' src="assets/pickaxe.png"/>
+    <img id='axe-image' src="assets/axe.png"/>
+    <img id='tree-top-image' src="assets/tree-top.png"/>
+    <img id='tree-side-image' src="assets/tree-side.png"/>
+    <img id='wood-image' src="assets/wood.png"/>
   </div>
   <body>
     <center>
-      <table>
+      <table style='border: 1px solid black'>
         <tr>
           <td>
-            <div id='invent_list'></div>
+            <div id='inventory-list'></div>
           </td>
           <td><canvas id="viewport" width="600" height="600" style='background-color:#000'></canvas></td>
       </table>
       <div>
-        <p>WASD. Mouse wheel to rotate camera. Click to place/remove stones.</p>
+        <p>Basically an top-down isometric minecraft clone for now. WASD, mouse wheel, click inventory items and click tiles on the screen.</p>
         <p>A work in progress by <a href="http://dabbler0.github.io/hack-per-day">Anthony Bau</a></p>
       </div>
     </center>
