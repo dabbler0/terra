@@ -1,5 +1,5 @@
 !function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.terra=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var Axe, BOARD, Board, ITEMSIZE, IdObject, Inventory, Item, MOB_INVENTORY_SIZE, MOUSE_POS, Mob, Obstacle, PLAYER, Pickaxe, Player, RANGE, RAW_MOUSE_POS, SIZE, SPEED, ShadowQueue, Stone, StoneObstacle, Terrain, Tile, TreeObstacle, Vector, Wood, WoodObstacle, aliveNeighbors, axe, c, canvas, cell, col, ctx, dirt, grass, inventoryDivs, inventoryList, keysdown, neighbor, newFlags, oldFlags, pickaxe, redrawInventory, s, stone, tick, translateOKComponent, treeSide, treeTop, uns, updateMousePos, wiz, wood, x, y, _i, _j, _k, _l, _len, _len1, _len2, _len3, _len4, _len5, _len6, _m, _n, _o, _p, _q, _r, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8,
+var Axe, BOARD, BattleAxe, Board, ITEMSIZE, ITEM_DISPLAY_SIZE, IdObject, Inventory, Item, MOB_INVENTORY_SIZE, MOUSE_POS, Mob, Obstacle, PLAYER, Pickaxe, Player, RANGE, RAW_MOUSE_POS, RECIPES, Recipe, SIZE, SPEED, ShadowQueue, Stone, StoneObstacle, Terrain, Tile, TreeObstacle, Vector, Wood, WoodObstacle, Word, aliveNeighbors, axe, battleaxe, c, canvas, cell, col, ctx, dirt, getRecipes, grass, i, inventoryCanvases, inventoryList, inventoryTable, itemType, j, keysdown, neighbor, newFlags, oldFlags, pickaxe, recipeList, redrawInventory, renderRecipes, s, stone, sword, tick, tr, translateOKComponent, treeSide, treeTop, uns, updateMousePos, wiz, wood, x, y, _fn, _i, _j, _k, _l, _len, _len1, _len2, _len3, _len4, _len5, _len6, _m, _n, _o, _p, _q, _r, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _s, _t,
   __hasProp = {}.hasOwnProperty,
   __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   __modulo = function(a, b) { return (a % b + +b) % b; };
@@ -26,6 +26,10 @@ treeTop = document.getElementById('tree-top-image');
 
 wood = document.getElementById('wood-image');
 
+battleaxe = document.getElementById('battle-axe-image');
+
+sword = document.getElementById('sword-image');
+
 SPEED = 0.3;
 
 SIZE = 40;
@@ -33,6 +37,8 @@ SIZE = 40;
 RANGE = 2;
 
 ITEMSIZE = 15;
+
+ITEM_DISPLAY_SIZE = 35;
 
 MOB_INVENTORY_SIZE = 20;
 
@@ -148,6 +154,40 @@ Item = (function(_super) {
 
 })(IdObject);
 
+Item.idMap = {};
+
+itemType = function(opts) {
+  var resultantItem;
+  resultantItem = (function(_super) {
+    __extends(_Class, _super);
+
+    function _Class() {
+      _Class.__super__.constructor.apply(this, arguments);
+      this.texture = opts.texture;
+      this.name = opts.name;
+      this.item_id = opts.id;
+      if (opts.constructor != null) {
+        opts.constructor.call(this, arguments);
+      }
+    }
+
+    _Class.prototype.useOnTile = function(tile) {
+      if (opts.useOnTile != null) {
+        return opts.useOnTile.call(this, tile);
+      }
+    };
+
+    return _Class;
+
+  })(Item);
+  Item.idMap[opts.id] = resultantItem;
+  resultantItem.name = opts.name;
+  resultantItem._item_name = opts.name;
+  resultantItem._item_texture = opts.texture;
+  resultantItem._item_id = opts.id;
+  return resultantItem;
+};
+
 StoneObstacle = (function(_super) {
   __extends(StoneObstacle, _super);
 
@@ -160,28 +200,19 @@ StoneObstacle = (function(_super) {
 
 })(Obstacle);
 
-Stone = (function(_super) {
-  __extends(Stone, _super);
-
-  function Stone() {
-    Stone.__super__.constructor.apply(this, arguments);
-    this.texture = stone;
-    this.name = 'Stone';
-    this._item_id = 0;
-  }
-
-  Stone.prototype.useOnTile = function(tile) {
+Stone = itemType({
+  texture: stone,
+  name: 'Stone',
+  id: 0,
+  useOnTile: function(tile) {
     if (tile.obstacle != null) {
       return false;
     } else {
       tile.obstacle = new StoneObstacle();
       return true;
     }
-  };
-
-  return Stone;
-
-})(Item);
+  }
+});
 
 TreeObstacle = (function(_super) {
   __extends(TreeObstacle, _super);
@@ -207,41 +238,28 @@ WoodObstacle = (function(_super) {
 
 })(Obstacle);
 
-Wood = (function(_super) {
-  __extends(Wood, _super);
-
-  function Wood() {
-    Wood.__super__.constructor.apply(this, arguments);
-    this.texture = wood;
-    this.name = 'Wood';
-    this._item_id = 1;
-  }
-
-  Wood.prototype.useOnTile = function(tile) {
+Wood = itemType({
+  texture: wood,
+  name: 'Wood',
+  id: 1,
+  useOnTile: function(tile) {
     if (tile.obstacle != null) {
       return false;
     } else {
       tile.obstacle = new WoodObstacle();
       return true;
     }
-  };
-
-  return Wood;
-
-})(Item);
-
-Pickaxe = (function(_super) {
-  __extends(Pickaxe, _super);
-
-  function Pickaxe() {
-    Pickaxe.__super__.constructor.apply(this, arguments);
-    this.texture = pickaxe;
-    this.name = 'Pickaxe';
-    this._item_id = 2;
-    this.quality = 0.3;
   }
+});
 
-  Pickaxe.prototype.useOnTile = function(tile) {
+Pickaxe = itemType({
+  texture: pickaxe,
+  name: 'Pickaxe',
+  id: 2,
+  constructor: function() {
+    return this.quality = 0.3;
+  },
+  useOnTile: function(tile) {
     if (tile.obstacle != null) {
       if (tile.obstacle instanceof StoneObstacle) {
         if (Math.random() < this.quality) {
@@ -252,24 +270,17 @@ Pickaxe = (function(_super) {
       }
     }
     return false;
-  };
-
-  return Pickaxe;
-
-})(Item);
-
-Axe = (function(_super) {
-  __extends(Axe, _super);
-
-  function Axe() {
-    Axe.__super__.constructor.apply(this, arguments);
-    this.texture = axe;
-    this.name = 'Axe';
-    this._item_id = 2;
-    this.quality = 0.5;
   }
+});
 
-  Axe.prototype.useOnTile = function(tile) {
+Axe = itemType({
+  texture: axe,
+  name: 'Axe',
+  id: 3,
+  constructor: function() {
+    return this.quality = 0.3;
+  },
+  useOnTile: function(tile) {
     if (tile.obstacle != null) {
       if (tile.obstacle instanceof TreeObstacle || tile.obstacle instanceof WoodObstacle) {
         if (Math.random() < this.quality) {
@@ -280,46 +291,80 @@ Axe = (function(_super) {
       }
     }
     return false;
+  }
+});
+
+BattleAxe = itemType({
+  texture: battleaxe,
+  name: 'Battle-Axe',
+  id: 4,
+  constructor: function() {
+    return this.quality = 0.5;
+  }
+});
+
+Word = itemType({
+  texture: sword,
+  name: 'Sword',
+  id: 5,
+  constructor: function() {
+    return this.quality = 0.5;
+  }
+});
+
+Recipe = (function() {
+  function Recipe(needs, creates) {
+    this.needs = needs;
+    this.creates = creates;
+  }
+
+  Recipe.prototype.canWork = function(inventory) {
+    var key, val, _ref;
+    console.log(inventory.counts, this.needs);
+    _ref = this.needs;
+    for (key in _ref) {
+      val = _ref[key];
+      if (!(key in inventory.counts && inventory.counts[key] >= val)) {
+        return false;
+      }
+    }
+    return true;
   };
 
-  return Axe;
+  Recipe.prototype.attempt = function(inventory) {
+    var i, key, val, _i, _ref;
+    if (this.canWork(inventory)) {
+      _ref = this.needs;
+      for (key in _ref) {
+        val = _ref[key];
+        for (i = _i = 0; 0 <= val ? _i < val : _i > val; i = 0 <= val ? ++_i : --_i) {
+          inventory.removeType(Number(key));
+        }
+      }
+      return inventory.push(new Item.idMap[this.creates]());
+    } else {
+      return false;
+    }
+  };
 
-})(Item);
+  return Recipe;
 
-Obstacle = (function(_super) {
-  __extends(Obstacle, _super);
+})();
 
-  function Obstacle(texture) {
-    this.texture = texture;
-    Obstacle.__super__.constructor.apply(this, arguments);
-  }
-
-  return Obstacle;
-
-})(IdObject);
-
-Terrain = (function(_super) {
-  __extends(Terrain, _super);
-
-  function Terrain(texture) {
-    this.texture = texture;
-    Terrain.__super__.constructor.apply(this, arguments);
-  }
-
-  return Terrain;
-
-})(IdObject);
-
-Inventory = (function(_super) {
-  __extends(Inventory, _super);
-
-  function Inventory() {
-    this.contents = [];
-  }
-
-  return Inventory;
-
-})(IdObject);
+RECIPES = [
+  new Recipe({
+    1: 3,
+    0: 2
+  }, 2), new Recipe({
+    1: 3,
+    0: 2
+  }, 3), new Recipe({
+    3: 2
+  }, 4), new Recipe({
+    1: 1,
+    0: 4
+  }, 5)
+];
 
 Tile = (function(_super) {
   __extends(Tile, _super);
@@ -408,14 +453,19 @@ Inventory = (function(_super) {
     this.handlers = {
       'change': []
     };
+    this.counts = {};
   }
 
   Inventory.prototype.push = function(item) {
-    var fn, _i, _len, _ref;
+    var fn, _base, _i, _len, _name, _ref;
     if (this.contents.length >= this.size) {
       return false;
     } else {
       this.contents.push(item);
+      if ((_base = this.counts)[_name = item.item_id] == null) {
+        _base[_name] = 0;
+      }
+      this.counts[item.item_id] += 1;
       _ref = this.handlers.change;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         fn = _ref[_i];
@@ -432,12 +482,35 @@ Inventory = (function(_super) {
       el = _ref[i];
       if (el === item) {
         this.contents.splice(i, 1);
+        this.counts[item.item_id] -= 1;
         _ref1 = this.handlers.change;
         for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
           fn = _ref1[_j];
           fn();
         }
         return item;
+      }
+    }
+    return null;
+  };
+
+  Inventory.prototype.removeType = function(id) {
+    var el, fn, i, _i, _j, _len, _len1, _ref, _ref1;
+    console.log('removing type', id);
+    _ref = this.contents;
+    for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
+      el = _ref[i];
+      console.log('considering removing', el.item_id, id, el.item_id === id);
+      if (el.item_id === id) {
+        console.log('ACTUALLY removing now');
+        this.contents.splice(i, 1);
+        this.counts[id] -= 1;
+        _ref1 = this.handlers.change;
+        for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+          fn = _ref1[_j];
+          fn();
+        }
+        return el;
       }
     }
     return null;
@@ -989,40 +1062,90 @@ PLAYER.cameraRotation = Math.PI / 4;
 
 inventoryList = document.getElementById('inventory-list');
 
-inventoryDivs = [];
+inventoryTable = document.createElement('table');
+
+inventoryList.appendChild(inventoryTable);
+
+inventoryCanvases = [];
+
+for (i = _s = 0; _s < 4; i = ++_s) {
+  tr = document.createElement('tr');
+  _fn = function(i, j) {
+    var inventoryCanvas, td;
+    td = document.createElement('td');
+    inventoryCanvas = document.createElement('canvas');
+    inventoryCanvas.width = inventoryCanvas.height = ITEM_DISPLAY_SIZE;
+    inventoryCanvas.style.borderRadius = '2px';
+    inventoryCanvas.className = 'inventory-canvas';
+    inventoryCanvases.push(inventoryCanvas);
+    td.appendChild(inventoryCanvas);
+    td.addEventListener('click', function() {
+      if (inventoryCanvases[PLAYER.usingItem] != null) {
+        inventoryCanvases[PLAYER.usingItem].style.outline = 'none';
+      }
+      PLAYER.usingItem = i * 5 + j;
+      return inventoryCanvas.style.outline = '1px solid #FF0';
+    });
+    return tr.appendChild(td);
+  };
+  for (j = _t = 0; _t < 5; j = ++_t) {
+    _fn(i, j);
+  }
+  inventoryTable.appendChild(tr);
+}
+
+$('.inventory-canvas').tooltipster();
 
 redrawInventory = function() {
-  var el, i, _fn, _len7, _ref9, _s;
-  console.log('changed once');
-  inventoryList.innerHTML = '';
-  inventoryDivs = [];
-  _ref9 = PLAYER.inventory.contents;
-  _fn = function(i) {
-    var div, inventoryCanvas, inventoryCtx, span;
-    div = document.createElement('div');
-    inventoryDivs.push(div);
-    span = document.createElement('span');
-    span.innerText = el.name;
-    inventoryCanvas = document.createElement('canvas');
-    inventoryCanvas.width = inventoryCanvas.height = ITEMSIZE;
-    inventoryCtx = inventoryCanvas.getContext('2d');
-    inventoryCtx.drawImage(el.texture, 0, 0, ITEMSIZE, ITEMSIZE);
-    div.appendChild(inventoryCanvas);
-    div.appendChild(span);
-    div.addEventListener('click', function() {
-      inventoryDivs[PLAYER.usingItem].style.background = 'none';
-      PLAYER.usingItem = i;
-      return inventoryDivs[PLAYER.usingItem].style.background = '#FF0';
-    });
-    return inventoryList.appendChild(div);
-  };
-  for (i = _s = 0, _len7 = _ref9.length; _s < _len7; i = ++_s) {
-    el = _ref9[i];
-    _fn(i);
+  var iCtx, _u;
+  for (i = _u = 0; _u < 20; i = ++_u) {
+    iCtx = inventoryCanvases[i].getContext('2d');
+    iCtx.clearRect(0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE);
+    if (PLAYER.inventory.contents[i] != null) {
+      iCtx.drawImage(PLAYER.inventory.contents[i].texture, 0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE);
+      $(inventoryCanvases[i]).tooltipster('content', PLAYER.inventory.contents[i].name);
+    } else {
+      $(inventoryCanvases[i]).tooltipster('content', '');
+    }
+    if (i === PLAYER.usingItem) {
+      inventoryCanvases[i].style.outline = '1px solid #FF0';
+    } else {
+      inventoryCanvases[i].style.outline = 'none';
+    }
   }
-  if (inventoryDivs[PLAYER.usingItem] != null) {
-    return inventoryDivs[PLAYER.usingItem].style.background = '#FF0';
+  return renderRecipes();
+};
+
+getRecipes = function() {
+  return RECIPES.filter(function(recipe) {
+    return recipe.canWork(PLAYER.inventory);
+  });
+};
+
+recipeList = document.getElementById('recipe-list');
+
+renderRecipes = function() {
+  var recipe, recipes, _len7, _results, _u;
+  recipeList.innerHTML = '';
+  recipes = getRecipes();
+  _results = [];
+  for (_u = 0, _len7 = recipes.length; _u < _len7; _u++) {
+    recipe = recipes[_u];
+    _results.push((function(recipe) {
+      var icon;
+      icon = document.createElement('canvas');
+      icon.width = icon.height = ITEM_DISPLAY_SIZE;
+      icon.style.backgroundColor = '#FFF';
+      icon.style.borderRadius = '2px';
+      icon.className = 'recipe-canvas';
+      icon.addEventListener('click', function() {
+        return recipe.attempt(PLAYER.inventory);
+      });
+      icon.getContext('2d').drawImage(Item.idMap[recipe.creates]._item_texture, 0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE);
+      return recipeList.appendChild(icon);
+    })(recipe));
   }
+  return _results;
 };
 
 PLAYER.inventory.on('change', redrawInventory);
