@@ -10,11 +10,14 @@ axe = document.getElementById 'axe-image'
 treeSide = document.getElementById 'tree-side-image'
 treeTop = document.getElementById 'tree-top-image'
 wood = document.getElementById 'wood-image'
+battleaxe = document.getElementById 'battle-axe-image'
+sword = document.getElementById 'sword-image'
 
 SPEED = 0.3
 SIZE = 40
 RANGE = 2
 ITEMSIZE = 15
+ITEM_DISPLAY_SIZE = 35
 MOB_INVENTORY_SIZE = 20
 
 class IdObject
@@ -69,18 +72,40 @@ class Terrain extends IdObject
 class Item extends IdObject
   constructor: (@name, @texture) ->
 
+Item.idMap = {}
+
+itemType = (opts) ->
+  resultantItem = class extends Item
+    constructor: ->
+      super
+      @texture = opts.texture
+      @name = opts.name
+      @item_id = opts.id
+      if opts.constructor? then opts.constructor.call this, arguments
+
+    useOnTile: (tile) ->
+      if opts.useOnTile?
+        opts.useOnTile.call this, tile
+
+  Item.idMap[opts.id] = resultantItem
+
+  resultantItem.name = opts.name
+  resultantItem._item_name = opts.name
+  resultantItem._item_texture = opts.texture
+  resultantItem._item_id = opts.id
+
+  return resultantItem
+
 # Stone
 class StoneObstacle extends Obstacle
   constructor: ->
     super stone, stone
     @drops.push new Stone()
 
-class Stone extends Item
-  constructor: ->
-    super
-    @texture = stone
-    @name = 'Stone'
-    @_item_id = 0
+Stone = itemType
+  texture: stone
+  name: 'Stone'
+  id: 0
 
   useOnTile: (tile) ->
     if tile.obstacle?
@@ -102,12 +127,10 @@ class WoodObstacle extends Obstacle
     super wood, wood
     @drops.push new Wood()
 
-class Wood extends Item
-  constructor: ->
-    super
-    @texture = wood
-    @name = 'Wood'
-    @_item_id = 1
+Wood = itemType
+  texture: wood
+  name: 'Wood'
+  id: 1
 
   useOnTile: (tile) ->
     if tile.obstacle?
@@ -119,12 +142,12 @@ class Wood extends Item
       return true
 
 # Pickaxe
-class Pickaxe extends Item
+Pickaxe = itemType
+  texture: pickaxe
+  name: 'Pickaxe'
+  id: 2
+
   constructor: ->
-    super
-    @texture = pickaxe
-    @name = 'Pickaxe'
-    @_item_id = 2
     @quality = 0.3 # Not so good axe
 
   useOnTile: (tile) ->
@@ -139,13 +162,13 @@ class Pickaxe extends Item
     return false
 
 # Axe
-class Axe extends Item
+Axe = itemType
+  texture: axe
+  name: 'Axe'
+  id: 3
+
   constructor: ->
-    super
-    @texture = axe
-    @name = 'Axe'
-    @_item_id = 2
-    @quality = 0.5 # Not so good axe
+    @quality = 0.3 # Not so good axe
 
   useOnTile: (tile) ->
     if tile.obstacle?
@@ -158,17 +181,48 @@ class Axe extends Item
     # Not consumed:
     return false
 
-class Obstacle extends IdObject
-  constructor: (@texture) ->
-    super
+# Battle-Axe
+BattleAxe = itemType
+  texture: battleaxe
+  name: 'Battle-Axe'
+  id: 4
 
-class Terrain extends IdObject
-  constructor: (@texture) ->
-    super
-
-class Inventory extends IdObject
   constructor: ->
-    @contents = []
+    @quality = 0.5
+
+Word = itemType
+  texture: sword
+  name: 'Sword'
+  id: 5
+
+  constructor: ->
+    @quality = 0.5
+
+class Recipe
+  constructor: (@needs, @creates) ->
+
+  canWork: (inventory) ->
+    console.log inventory.counts, @needs
+    for key, val of @needs
+      unless key of inventory.counts and inventory.counts[key] >= val
+        return false
+
+    return true
+
+  attempt: (inventory) ->
+    if @canWork inventory
+      for key, val of @needs
+        inventory.removeType(Number(key)) for i in [0...val]
+      inventory.push new Item.idMap[@creates]()
+    else
+      return false
+
+RECIPES = [
+  new Recipe {1: 3, 0: 2}, 2 # 3 Wood + 2 Stone = 1 Pickaxe
+  new Recipe {1: 3, 0: 2}, 3 # 3 Wood + 2 Stone = 1 Axe
+  new Recipe {3: 2}, 4 # 2 Axe = 1 Battle-Axe
+  new Recipe {1: 1, 0: 4}, 5 # 1 Wood + 4 Stone = 1 Sword
+]
 
 class Tile extends IdObject
   constructor: (@board, @pos, @terrain, @obstacle) ->
@@ -243,12 +297,15 @@ class Inventory extends IdObject
     @handlers = {
       'change': []
     }
+    @counts = {}
 
   push: (item) ->
     if @contents.length >= @size
       return false
     else
       @contents.push item
+      @counts[item.item_id] ?= 0
+      @counts[item.item_id] += 1
       fn() for fn in @handlers.change
       return true
 
@@ -256,8 +313,21 @@ class Inventory extends IdObject
     for el, i in @contents
       if el is item
         @contents.splice i, 1
+        @counts[item.item_id] -= 1
         fn() for fn in @handlers.change
         return item
+    return null
+
+  removeType: (id) ->
+    console.log 'removing type', id
+    for el, i in @contents
+      console.log 'considering removing', el.item_id, id, el.item_id is id
+      if el.item_id is id
+        console.log 'ACTUALLY removing now'
+        @contents.splice i, 1
+        @counts[id] -= 1
+        fn() for fn in @handlers.change
+        return el
     return null
 
   on: (event, fn) ->
@@ -616,37 +686,70 @@ PLAYER = new Player BOARD
 PLAYER.pos = c(250, 250)
 PLAYER.cameraRotation = Math.PI / 4
 
+# Make the inventory list UI
 inventoryList = document.getElementById 'inventory-list'
 
-inventoryDivs = [] # TODO pretty hacky
-redrawInventory = ->
-  console.log 'changed once'
-  inventoryList.innerHTML = ''
-  inventoryDivs = []
-  for el, i in PLAYER.inventory.contents then do (i) ->
-    div = document.createElement 'div'
-    inventoryDivs.push div
+# Populate the inventory list
+inventoryTable = document.createElement 'table'
+inventoryList.appendChild inventoryTable
+inventoryCanvases = []
 
-    span = document.createElement 'span'
-    span.innerText = el.name
-
+for i in [0...4]
+  tr = document.createElement 'tr'
+  for j in [0...5] then do (i, j) ->
+    td = document.createElement 'td'
     inventoryCanvas = document.createElement 'canvas'
-    inventoryCanvas.width = inventoryCanvas.height = ITEMSIZE
-    inventoryCtx = inventoryCanvas.getContext '2d'
-    inventoryCtx.drawImage el.texture, 0, 0, ITEMSIZE, ITEMSIZE
+    inventoryCanvas.width = inventoryCanvas.height = ITEM_DISPLAY_SIZE
+    inventoryCanvas.style.borderRadius = '2px'
+    inventoryCanvas.className = 'inventory-canvas'
+    inventoryCanvases.push inventoryCanvas
+    td.appendChild inventoryCanvas
+    td.addEventListener 'click', ->
+      if inventoryCanvases[PLAYER.usingItem]?
+        inventoryCanvases[PLAYER.usingItem].style.outline = 'none'
+      PLAYER.usingItem = i * 5 + j
+      inventoryCanvas.style.outline = '1px solid #FF0'
+    tr.appendChild td
+  inventoryTable.appendChild tr
 
-    div.appendChild inventoryCanvas
-    div.appendChild span
+$('.inventory-canvas').tooltipster()
 
-    div.addEventListener 'click', ->
-      inventoryDivs[PLAYER.usingItem].style.background = 'none'
-      PLAYER.usingItem = i
-      inventoryDivs[PLAYER.usingItem].style.background = '#FF0'
+redrawInventory = ->
+  for i in [0...20]
+    iCtx = inventoryCanvases[i].getContext '2d'
+    iCtx.clearRect 0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE
+    if PLAYER.inventory.contents[i]?
+      iCtx.drawImage PLAYER.inventory.contents[i].texture, 0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE
+      $(inventoryCanvases[i]).tooltipster 'content', PLAYER.inventory.contents[i].name
+    else
+      $(inventoryCanvases[i]).tooltipster 'content', ''
 
-    inventoryList.appendChild div
+    if i is PLAYER.usingItem
+      inventoryCanvases[i].style.outline = '1px solid #FF0'
+    else
+      inventoryCanvases[i].style.outline = 'none'
 
-  if inventoryDivs[PLAYER.usingItem]?
-    inventoryDivs[PLAYER.usingItem].style.background = '#FF0'
+  renderRecipes()
+
+getRecipes = -> RECIPES.filter (recipe) -> recipe.canWork PLAYER.inventory
+
+recipeList = document.getElementById 'recipe-list'
+renderRecipes = ->
+  recipeList.innerHTML = ''
+  recipes = getRecipes()
+  for recipe in recipes then do (recipe) ->
+    icon = document.createElement 'canvas'
+    icon.width = icon.height = ITEM_DISPLAY_SIZE
+    icon.style.backgroundColor = '#FFF'
+    icon.style.borderRadius = '2px'
+    icon.className = 'recipe-canvas'
+
+    icon.addEventListener 'click', ->
+      recipe.attempt PLAYER.inventory
+
+    icon.getContext('2d').drawImage Item.idMap[recipe.creates]._item_texture, 0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE
+    recipeList.appendChild icon
+
 PLAYER.inventory.on 'change', redrawInventory
 
 PLAYER.inventory.push new Pickaxe()
