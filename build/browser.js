@@ -1,5 +1,5 @@
 !function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.terra=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var Axe, BOARD, BULLETS, BattleAxe, Board, Bow, Bullet, Copper, CopperObstacle, Dagger, FRAME_RATE, ITEMSIZE, ITEM_DISPLAY_SIZE, IdObject, Inventory, Item, MOBS, MOB_INVENTORY_SIZE, MOB_SPEED, MOUSEDOWN, MOUSE_POS, Mob, Obstacle, PLAYER, Pickaxe, Player, RANGE, RAW_MOUSE_POS, RECIPES, Recipe, RememberedTile, Rogue, SIZE, SPEED, ShadowQueue, Spear, Stone, StoneObstacle, StoneTerrain, StoneTile, Sword, TARGET_FLASHING, TARGET_FLASH_TIME, Terrain, Tile, TreeObstacle, Vector, Wanderer, Warrior, Wood, WoodObstacle, WoodPlank, WoodTerrain, aliveNeighbors, assetName, assets, c, canvas, cell, col, ctx, getRecipes, healthBar, healthIndicator, i, inventoryCanvases, inventoryList, inventoryTable, itemType, j, keysdown, mob, neighbor, newFlags, oldFlags, recipeList, redrawInventory, renderRecipes, s, tick, tile, toolUseTick, tr, translateOKComponent, uns, updateMousePos, x, y, _base, _fn, _i, _j, _k, _l, _len, _len1, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _m, _n, _o, _p, _q, _r, _ref, _ref1, _ref10, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _s, _t, _u, _v, _w, _x,
+var Axe, BOARD, BULLETS, BattleAxe, Board, Bow, Bullet, Copper, CopperObstacle, Dagger, FRAME_RATE, ITEMSIZE, ITEM_DISPLAY_SIZE, IdObject, Inventory, Item, MOBS, MOB_INVENTORY_SIZE, MOB_SPEED, MOUSEDOWN, MOUSE_POS, Mob, Obstacle, PLAYER, Pickaxe, Player, RANGE, RAW_MOUSE_POS, RECIPES, Recipe, RememberedTile, Rogue, SIZE, SPEED, ShadowQueue, Spear, Stone, StoneObstacle, StoneTerrain, StoneTile, Sword, TARGET_FLASHING, TARGET_FLASH_TIME, Terrain, Tile, TreeObstacle, Vector, Wanderer, Warrior, Wood, WoodObstacle, WoodPlank, WoodTerrain, assetName, assets, c, canvas, ctx, getRecipes, healthBar, healthIndicator, inventoryCanvases, itemType, keysdown, recipeList, redrawInventory, renderRecipes, s, tick, toolUseTick, translateOKComponent, uns, updateMousePos, _i, _len, _ref,
   __hasProp = {}.hasOwnProperty,
   __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   __modulo = function(a, b) { return (a % b + +b) % b; };
@@ -8,9 +8,11 @@ canvas = document.getElementById('viewport');
 
 ctx = canvas.getContext('2d');
 
-MOBS = [];
-
 MOB_SPEED = 0.2;
+
+BOARD = PLAYER = inventoryCanvases = null;
+
+MOBS = BULLETS = [];
 
 assets = {};
 
@@ -1454,8 +1456,6 @@ canvas.addEventListener('mouseup', function(ev) {
   return MOUSEDOWN = false;
 });
 
-BULLETS = [];
-
 TARGET_FLASHING = false;
 
 toolUseTick = function() {
@@ -1524,167 +1524,14 @@ tick = function() {
     return setTimeout(tick, 1000 / FRAME_RATE);
   } else {
     ctx.font = '40px Arial';
+    ctx.fillStyle = '#000';
     return ctx.fillText('You die...', canvas.width / 2 - ctx.measureText('You die...').width / 2, canvas.height / 2);
   }
 };
 
-BOARD = new Board(c(500, 500));
-
-for (_j = 1; _j < 200; _j++) {
-  _ref1 = BOARD.getTileArea(c(Math.floor(Math.random() * 500), Math.floor(Math.random() * 200)), Math.ceil(Math.random() * 3) + 1);
-  for (_k = 0, _len1 = _ref1.length; _k < _len1; _k++) {
-    tile = _ref1[_k];
-    tile.obstacle = new CopperObstacle();
-  }
-}
-
-oldFlags = (function() {
-  var _l, _results;
-  _results = [];
-  for (_l = 0; _l < 500; _l++) {
-    _results.push((function() {
-      var _m, _results1;
-      _results1 = [];
-      for (y = _m = 0; _m < 250; y = ++_m) {
-        _results1.push(Math.random() < 0.3);
-      }
-      return _results1;
-    })());
-  }
-  return _results;
-})();
-
-newFlags = (function() {
-  var _l, _results;
-  _results = [];
-  for (_l = 0; _l < 500; _l++) {
-    _results.push((function() {
-      var _m, _results1;
-      _results1 = [];
-      for (y = _m = 0; _m < 250; y = ++_m) {
-        _results1.push(false);
-      }
-      return _results1;
-    })());
-  }
-  return _results;
-})();
-
-for (_l = 1; _l <= 30; _l++) {
-  for (x = _m = 0, _len2 = oldFlags.length; _m < _len2; x = ++_m) {
-    col = oldFlags[x];
-    for (y = _n = 0, _len3 = col.length; _n < _len3; y = ++_n) {
-      cell = col[y];
-      aliveNeighbors = 0;
-      _ref10 = [(_ref2 = oldFlags[x + 1]) != null ? _ref2[y] : void 0, (_ref3 = oldFlags[x]) != null ? _ref3[y + 1] : void 0, (_ref4 = oldFlags[x + 1]) != null ? _ref4[y + 1] : void 0, (_ref5 = oldFlags[x + 1]) != null ? _ref5[y - 1] : void 0, (_ref6 = oldFlags[x - 1]) != null ? _ref6[y + 1] : void 0, (_ref7 = oldFlags[x - 1]) != null ? _ref7[y - 1] : void 0, (_ref8 = oldFlags[x - 1]) != null ? _ref8[y] : void 0, (_ref9 = oldFlags[x]) != null ? _ref9[y - 1] : void 0];
-      for (_o = 0, _len4 = _ref10.length; _o < _len4; _o++) {
-        neighbor = _ref10[_o];
-        if (neighbor) {
-          aliveNeighbors++;
-        }
-      }
-      if (aliveNeighbors === 2 || aliveNeighbors === 3) {
-        newFlags[x][y] = true;
-      } else {
-        newFlags[x][y] = false;
-      }
-    }
-  }
-  for (x = _p = 0, _len5 = newFlags.length; _p < _len5; x = ++_p) {
-    col = newFlags[x];
-    for (y = _q = 0, _len6 = col.length; _q < _len6; y = ++_q) {
-      cell = col[y];
-      oldFlags[x][y] = cell;
-    }
-  }
-}
-
-for (x = _r = 0, _len7 = oldFlags.length; _r < _len7; x = ++_r) {
-  col = oldFlags[x];
-  for (y = _s = 0, _len8 = col.length; _s < _len8; y = ++_s) {
-    cell = col[y];
-    if (cell) {
-      BOARD.cells[x][y].terrain = new Terrain(assets['dirt']);
-      if ((_base = BOARD.cells[x][y]).obstacle == null) {
-        _base.obstacle = new StoneObstacle();
-      }
-    } else {
-      BOARD.cells[x][y].terrain = new Terrain(assets['dirt']);
-      BOARD.cells[x][y].obstacle = null;
-    }
-  }
-}
-
-for (x = _t = 0; _t < 500; x = ++_t) {
-  for (y = _u = 250; _u < 500; y = ++_u) {
-    if (Math.random() < 0.05 * Math.pow(20, y / 250 - 1)) {
-      BOARD.cells[x][y].obstacle = new TreeObstacle();
-      BOARD.cells[x][y].terrain = new Terrain(assets['dirt']);
-    } else {
-      BOARD.cells[x][y].terrain = new Terrain(assets['grass']);
-    }
-  }
-}
-
-MOBS = [];
-
-for (_v = 1; _v <= 100; _v++) {
-  if (Math.random() < 0.5) {
-    mob = new Warrior(BOARD);
-  } else {
-    mob = new Rogue(BOARD);
-  }
-  mob.pos = c(Math.random() * 100 - 50 + 250, Math.random() * 100 - 50 + 250);
-  MOBS.push(mob);
-}
-
-PLAYER = new Player(BOARD);
-
-PLAYER.pos = c(250, 250);
-
-PLAYER.cameraRotation = Math.PI / 4;
-
-MOBS.push(PLAYER);
-
-inventoryList = document.getElementById('inventory-list');
-
-inventoryTable = document.createElement('table');
-
-inventoryList.appendChild(inventoryTable);
-
-inventoryCanvases = [];
-
-for (i = _w = 0; _w < 4; i = ++_w) {
-  tr = document.createElement('tr');
-  _fn = function(i, j) {
-    var inventoryCanvas, td;
-    td = document.createElement('td');
-    inventoryCanvas = document.createElement('canvas');
-    inventoryCanvas.width = inventoryCanvas.height = ITEM_DISPLAY_SIZE;
-    inventoryCanvas.style.borderRadius = '2px';
-    inventoryCanvas.className = 'inventory-canvas';
-    inventoryCanvases.push(inventoryCanvas);
-    td.appendChild(inventoryCanvas);
-    td.addEventListener('click', function() {
-      if (inventoryCanvases[PLAYER.usingItem] != null) {
-        inventoryCanvases[PLAYER.usingItem].style.outline = 'none';
-      }
-      PLAYER.usingItem = i * 5 + j;
-      return inventoryCanvas.style.outline = '1px solid #FF0';
-    });
-    return tr.appendChild(td);
-  };
-  for (j = _x = 0; _x < 5; j = ++_x) {
-    _fn(i, j);
-  }
-  inventoryTable.appendChild(tr);
-}
-
-$('.inventory-canvas').tooltipster();
-
 redrawInventory = function() {
-  var iCtx, _y;
-  for (i = _y = 0; _y < 20; i = ++_y) {
+  var i, iCtx, _j;
+  for (i = _j = 0; _j < 20; i = ++_j) {
     iCtx = inventoryCanvases[i].getContext('2d');
     iCtx.clearRect(0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE);
     if (PLAYER.inventory.contents[i] != null) {
@@ -1711,12 +1558,12 @@ getRecipes = function() {
 recipeList = document.getElementById('recipe-list');
 
 renderRecipes = function() {
-  var recipe, recipes, _len9, _results, _y;
+  var recipe, recipes, _j, _len1, _results;
   recipeList.innerHTML = '';
   recipes = getRecipes();
   _results = [];
-  for (_y = 0, _len9 = recipes.length; _y < _len9; _y++) {
-    recipe = recipes[_y];
+  for (_j = 0, _len1 = recipes.length; _j < _len1; _j++) {
+    recipe = recipes[_j];
     _results.push((function(recipe) {
       var icon;
       icon = document.createElement('canvas');
@@ -1734,17 +1581,156 @@ renderRecipes = function() {
   return _results;
 };
 
-PLAYER.inventory.on('change', redrawInventory);
+ctx.font = '40px Arial';
 
-PLAYER.inventory.push(new Pickaxe());
+ctx.fillStyle = '#FFF';
 
-PLAYER.inventory.push(new Axe());
+ctx.fillText('Generating map...', canvas.width / 2 - ctx.measureText('Generating map...').width / 2, canvas.height / 2);
 
-PLAYER.inventory.push(new Spear());
-
-tick();
-
-toolUseTick();
+setTimeout((function() {
+  var aliveNeighbors, cell, col, i, inventoryList, inventoryTable, j, mob, neighbor, newFlags, oldFlags, tile, tr, x, y, _base, _fn, _j, _k, _l, _len1, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _m, _n, _o, _p, _q, _r, _ref1, _ref10, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _s, _t, _u, _v, _w, _x;
+  BOARD = new Board(c(500, 500));
+  for (_j = 1; _j < 200; _j++) {
+    _ref1 = BOARD.getTileArea(c(Math.floor(Math.random() * 500), Math.floor(Math.random() * 200)), Math.ceil(Math.random() * 3) + 1);
+    for (_k = 0, _len1 = _ref1.length; _k < _len1; _k++) {
+      tile = _ref1[_k];
+      tile.obstacle = new CopperObstacle();
+    }
+  }
+  oldFlags = (function() {
+    var _l, _results;
+    _results = [];
+    for (_l = 0; _l < 500; _l++) {
+      _results.push((function() {
+        var _m, _results1;
+        _results1 = [];
+        for (y = _m = 0; _m < 250; y = ++_m) {
+          _results1.push(Math.random() < 0.3);
+        }
+        return _results1;
+      })());
+    }
+    return _results;
+  })();
+  newFlags = (function() {
+    var _l, _results;
+    _results = [];
+    for (_l = 0; _l < 500; _l++) {
+      _results.push((function() {
+        var _m, _results1;
+        _results1 = [];
+        for (y = _m = 0; _m < 250; y = ++_m) {
+          _results1.push(false);
+        }
+        return _results1;
+      })());
+    }
+    return _results;
+  })();
+  for (_l = 1; _l <= 30; _l++) {
+    for (x = _m = 0, _len2 = oldFlags.length; _m < _len2; x = ++_m) {
+      col = oldFlags[x];
+      for (y = _n = 0, _len3 = col.length; _n < _len3; y = ++_n) {
+        cell = col[y];
+        aliveNeighbors = 0;
+        _ref10 = [(_ref2 = oldFlags[x + 1]) != null ? _ref2[y] : void 0, (_ref3 = oldFlags[x]) != null ? _ref3[y + 1] : void 0, (_ref4 = oldFlags[x + 1]) != null ? _ref4[y + 1] : void 0, (_ref5 = oldFlags[x + 1]) != null ? _ref5[y - 1] : void 0, (_ref6 = oldFlags[x - 1]) != null ? _ref6[y + 1] : void 0, (_ref7 = oldFlags[x - 1]) != null ? _ref7[y - 1] : void 0, (_ref8 = oldFlags[x - 1]) != null ? _ref8[y] : void 0, (_ref9 = oldFlags[x]) != null ? _ref9[y - 1] : void 0];
+        for (_o = 0, _len4 = _ref10.length; _o < _len4; _o++) {
+          neighbor = _ref10[_o];
+          if (neighbor) {
+            aliveNeighbors++;
+          }
+        }
+        if (aliveNeighbors === 2 || aliveNeighbors === 3) {
+          newFlags[x][y] = true;
+        } else {
+          newFlags[x][y] = false;
+        }
+      }
+    }
+    for (x = _p = 0, _len5 = newFlags.length; _p < _len5; x = ++_p) {
+      col = newFlags[x];
+      for (y = _q = 0, _len6 = col.length; _q < _len6; y = ++_q) {
+        cell = col[y];
+        oldFlags[x][y] = cell;
+      }
+    }
+  }
+  for (x = _r = 0, _len7 = oldFlags.length; _r < _len7; x = ++_r) {
+    col = oldFlags[x];
+    for (y = _s = 0, _len8 = col.length; _s < _len8; y = ++_s) {
+      cell = col[y];
+      if (cell) {
+        BOARD.cells[x][y].terrain = new Terrain(assets['dirt']);
+        if ((_base = BOARD.cells[x][y]).obstacle == null) {
+          _base.obstacle = new StoneObstacle();
+        }
+      } else {
+        BOARD.cells[x][y].terrain = new Terrain(assets['dirt']);
+        BOARD.cells[x][y].obstacle = null;
+      }
+    }
+  }
+  for (x = _t = 0; _t < 500; x = ++_t) {
+    for (y = _u = 250; _u < 500; y = ++_u) {
+      if (Math.random() < 0.05 * Math.pow(20, y / 250 - 1)) {
+        BOARD.cells[x][y].obstacle = new TreeObstacle();
+        BOARD.cells[x][y].terrain = new Terrain(assets['dirt']);
+      } else {
+        BOARD.cells[x][y].terrain = new Terrain(assets['grass']);
+      }
+    }
+  }
+  MOBS = [];
+  for (_v = 1; _v <= 100; _v++) {
+    if (Math.random() < 0.5) {
+      mob = new Warrior(BOARD);
+    } else {
+      mob = new Rogue(BOARD);
+    }
+    mob.pos = c(Math.random() * 100 - 50 + 250, Math.random() * 100 - 50 + 250);
+    MOBS.push(mob);
+  }
+  PLAYER = new Player(BOARD);
+  PLAYER.pos = c(250, 250);
+  PLAYER.cameraRotation = Math.PI / 4;
+  MOBS.push(PLAYER);
+  inventoryList = document.getElementById('inventory-list');
+  inventoryTable = document.createElement('table');
+  inventoryList.appendChild(inventoryTable);
+  inventoryCanvases = [];
+  for (i = _w = 0; _w < 4; i = ++_w) {
+    tr = document.createElement('tr');
+    _fn = function(i, j) {
+      var inventoryCanvas, td;
+      td = document.createElement('td');
+      inventoryCanvas = document.createElement('canvas');
+      inventoryCanvas.width = inventoryCanvas.height = ITEM_DISPLAY_SIZE;
+      inventoryCanvas.style.borderRadius = '2px';
+      inventoryCanvas.className = 'inventory-canvas';
+      inventoryCanvases.push(inventoryCanvas);
+      td.appendChild(inventoryCanvas);
+      td.addEventListener('click', function() {
+        if (inventoryCanvases[PLAYER.usingItem] != null) {
+          inventoryCanvases[PLAYER.usingItem].style.outline = 'none';
+        }
+        PLAYER.usingItem = i * 5 + j;
+        return inventoryCanvas.style.outline = '1px solid #FF0';
+      });
+      return tr.appendChild(td);
+    };
+    for (j = _x = 0; _x < 5; j = ++_x) {
+      _fn(i, j);
+    }
+    inventoryTable.appendChild(tr);
+  }
+  $('.inventory-canvas').tooltipster();
+  PLAYER.inventory.on('change', redrawInventory);
+  PLAYER.inventory.push(new Pickaxe());
+  PLAYER.inventory.push(new Axe());
+  PLAYER.inventory.push(new Spear());
+  tick();
+  return toolUseTick();
+}), 1);
 
 
 },{}]},{},[1])(1)
