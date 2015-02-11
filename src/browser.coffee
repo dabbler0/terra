@@ -24,8 +24,12 @@ for assetName in [
       'tile'
       'bullet'
       'bow'
-      'evil-orb'
       'spear'
+      'copper'
+      'copper-ore'
+      'dagger'
+      'warrior'
+      'rogue'
     ]
   assets[assetName] = document.getElementById "#{assetName}-image"
 
@@ -151,7 +155,7 @@ itemType = (opts) ->
   return resultantItem
 
 class Bullet extends IdObject
-  constructor: (@pos, vector, @template) ->
+  constructor: (@shooter, @pos, vector, @template) ->
     super
     @pos = @pos.clone()
     @texture = @template.texture
@@ -163,7 +167,7 @@ class Bullet extends IdObject
     @ticksPassed += 1
     @pos.translate @velocity
     # Check collision. May need board usage or quadtree if this gets slowsaw
-    for mob in MOBS
+    for mob in MOBS when mob isnt @shooter
       if @pos.touchesTile(mob.pos)
         @hit mob
         return true
@@ -201,6 +205,19 @@ Stone = itemType
 
       # Now consumed:
       return true
+
+# Copper
+class CopperObstacle extends StoneObstacle
+  constructor: ->
+    super
+    @topTexture = @sideTexture = assets['copper']
+    @drops.clear()
+    @drops.push new Copper()
+
+Copper = itemType
+  texture: assets['copper-ore']
+  name: 'Copper ore'
+  id: 10
 
 # Dirt
 class TreeObstacle extends Obstacle
@@ -313,7 +330,7 @@ BattleAxe = itemType
 
 Spear = itemType
   texture: assets['spear']
-  name: 'Battle-Axe'
+  name: 'Spear'
   id: 9
 
   canShoot: true
@@ -340,6 +357,22 @@ Sword = itemType
     duration: 100
     hit: (mob) =>
       mob.damage 4
+
+Dagger = itemType
+  texture: assets['dagger']
+  name: 'Dagger'
+  id: 11
+
+  constructor: ->
+
+  canShoot: true
+  shootTime: 150
+  bullet: ->
+    texture: assets['bullet']
+    speed: 1
+    duration: 30
+    hit: (mob) =>
+      mob.damage 1
 
 Bow = itemType
   texture: assets['bow']
@@ -376,14 +409,15 @@ class Recipe
       return false
 
 RECIPES = [
-  new Recipe {1: 3, 0: 2}, [2] # 3 Wood + 2 Stone = 1 Pickaxe
-  new Recipe {1: 3, 0: 2}, [3] # 3 Wood + 2 Stone = 1 Axe
+  new Recipe {1: 3, 10: 2}, [2] # 3 Wood + 2 Copper = 1 Pickaxe
+  new Recipe {1: 3, 10: 2}, [3] # 3 Wood + 2 Copper = 1 Axe
   new Recipe {3: 2}, [4] # 2 Axe = 1 Battle-Axe
-  new Recipe {1: 1, 0: 4}, [5] # 1 Wood + 4 Stone = 1 Sword
+  new Recipe {1: 1, 10: 4}, [5] # 1 Wood + 4 Copper = 1 Sword
   new Recipe {1: 1}, [6, 6, 6] # 1 Wood = 3 Wood plank
   new Recipe {0: 1}, [7, 7] # 1 Stone = 2 Stone tile
   new Recipe {1: 5}, [8] # 5 Wood = 1 Bow
   new Recipe {1: 4, 0: 1}, [9] # 4 Wood + 1 Stone = 1 Spear
+  new Recipe {1: 1, 10: 1}, [11] # 1 Wood + 1 Copper = 1 Dagger
 ]
 
 class Tile extends IdObject
@@ -475,6 +509,82 @@ class Tile extends IdObject
 
   passable: -> @obstacle?
 
+# A RememberedTile knows nothinge except how to render itself.
+class RememberedTile extends IdObject
+  constructor: ->
+    @pos = c 0, 0
+
+  update: (tile) ->
+    @obstacle = tile.obstacle?
+    @pos.x = tile.pos.x
+    @pos.y = tile.pos.y
+    if @obstacle
+      @sideTexture = tile.obstacle.sideTexture
+      @topTexture = tile.obstacle.topTexture
+      @obstacleHealth = tile.obstacle.health / tile.obstacle.maxHealth
+    else
+      @texture = tile.terrain.texture
+
+  render: (ctx) ->
+    if @obstacle
+      # Translate to the proper position
+      ctx.translate canvas.width / 2, canvas.height / 2
+      ctx.rotate PLAYER.cameraRotation
+      ctx.translate SIZE * @pos.x - PLAYER.pos.x * SIZE, SIZE * @pos.y - PLAYER.pos.y * SIZE
+      ctx.rotate -PLAYER.cameraRotation
+      ctx.translate 0, -SIZE
+      ctx.rotate PLAYER.cameraRotation
+
+      # Draw the top qquare
+      ctx.drawImage @topTexture, -SIZE / 2, -SIZE / 2, SIZE, SIZE
+
+      # Draw cracks if applicable
+      if 0.5 < @obstacleHealth <= 0.7
+        ctx.drawImage assets['crack1'], -SIZE/2, -SIZE/2, SIZE, SIZE
+      else if 0.3 < @obstacleHealth <= 0.5
+        ctx.drawImage assets['crack2'], -SIZE/2, -SIZE/2, SIZE, SIZE
+      else if @obstacleHealth <= 0.3
+        ctx.drawImage assets['crack3'], -SIZE/2, -SIZE/2, SIZE, SIZE
+
+      # Draw each of the four sides, when applicable.
+      # Tis entails doing a horizontal scaling and then
+      # a skew transformation.
+      #
+      # The percieved width of a side is always cos(r), where r
+      # is the amount of PLAYER.cameraRotation from flat. Since the
+      # length of the slanted side must always remain 1, this means
+      # that we need to skew by sin(r).
+      drawCorner = (n) =>
+        if ((PLAYER.cameraRotation + n) %% (2 * Math.PI)) < Math.PI
+          ctx.save()
+          ctx.rotate -PLAYER.cameraRotation
+          ctx.transform Math.cos(PLAYER.cameraRotation + n + Math.PI / 2), Math.sin(PLAYER.cameraRotation + n + Math.PI / 2), 0, 1, 0, 0
+          ctx.drawImage @sideTexture, 0, 0, SIZE, SIZE
+          # Draw cracks if applicable
+          if 0.5 < @obstacleHealth <= 0.7
+            ctx.drawImage assets['crack1'], 0, 0, SIZE, SIZE
+          else if 0.3 < @obstacleHealth <= 0.5
+            ctx.drawImage assets['crack2'], 0, 0, SIZE, SIZE
+          else if @obstacleHealth <= 0.3
+            ctx.drawImage assets['crack3'], 0, 0, SIZE, SIZE
+          ctx.restore()
+
+      ctx.translate -SIZE / 2, - SIZE / 2
+      drawCorner -Math.PI / 2
+      ctx.translate SIZE, 0
+      drawCorner 0
+      ctx.translate 0, SIZE
+      drawCorner Math.PI / 2
+      ctx.translate -SIZE, 0
+      drawCorner Math.PI
+      ctx.resetTransform()
+    else
+      ctx.translate canvas.width / 2, canvas.height / 2
+      ctx.rotate PLAYER.cameraRotation
+      ctx.translate SIZE * @pos.x - PLAYER.pos.x * SIZE, SIZE * @pos.y - PLAYER.pos.y * SIZE
+      ctx.drawImage @texture, -SIZE / 2, -SIZE / 2, SIZE, SIZE
+      ctx.resetTransform()
+
 class Inventory extends IdObject
   constructor: (@size) ->
     super
@@ -483,6 +593,11 @@ class Inventory extends IdObject
       'change': []
     }
     @counts = {}
+
+  clear: ->
+    @contents.length = 0
+    @counts = {}
+    fn() for fn in @handlers.change
 
   push: (item) ->
     if @contents.length >= @size
@@ -522,8 +637,14 @@ class Mob extends IdObject
     @pos = c 0, 0
     @inventory = new Inventory MOB_INVENTORY_SIZE
     @health = 10
+    @handlers = {
+      'status-change': []
+    }
 
   tick: ->
+
+  on: (event, fn) ->
+    @handlers[event]?.push fn
 
   render: (ctx)->
     ctx.translate canvas.width / 2, canvas.height / 2
@@ -536,28 +657,24 @@ class Mob extends IdObject
     ctx.resetTransform()
 
   kill: ->
+    console.log @board.get(@pos.round())
     targetInventory = @board.get(@pos.round()).inventory
     targetInventory.push item for item in @inventory.contents
 
   damage: (damage) ->
     @health -= damage
+    fn() for fn in @handlers['status-change']
     if @health < 0
       @kill()
       return true
     else
       return false
 
-class EvilOrb extends Mob
+class Wanderer extends Mob
   constructor: (@board) ->
     super
-    @texture = assets['evil-orb']
     @currentDirection = Math.random() * 2 * Math.PI
-
-    # Random stuff in inventory
-    if Math.random() < 0.5
-      @inventory.push new Sword()
-    if Math.random() < 0.5
-      @inventory.push new Bow()
+    @lastShotTime = new Date()
 
   tick: ->
     translateOKComponent @pos, c(Math.sin(@currentDirection), Math.cos(@currentDirection)).mult(MOB_SPEED)
@@ -566,13 +683,35 @@ class EvilOrb extends Mob
     if Math.random() < 0.01
       @currentDirection = Math.random() * 2 * Math.PI
 
+    if @inventory.contents.length > 0 and (new Date()) - @lastShotTime > @inventory.contents[0].shootTime
+      BULLETS.push new Bullet @, @pos, @pos.to(PLAYER.pos), @inventory.contents[0].bullet()
+      @lastShotTime = new Date()
+
+class Warrior extends Wanderer
+  constructor: ->
+    super
+    @health = 20
+    @texture = assets['warrior']
+    @inventory.push new Sword()
+
+class Rogue extends Wanderer
+  constructor: ->
+    super
+    @texture = assets['rogue']
+    @inventory.push new Dagger()
+
 class Player extends Mob
   constructor: (@board) ->
     super
     @cameraRotation = Math.PI / 4
     @seen = {}
     @usingItem = 0
+    @health = 100
     @texture = assets['wizard']
+
+  tick: ->
+    if @health < 100
+      @health += 0.01
 
   drawPerspective: (ctx) ->
     # Clear canvas
@@ -583,9 +722,6 @@ class Player extends Mob
 
     # Determine which of the tiles we can see
     visible = @board.shadowcast @pos, ((n) -> not n.passable()), 250 * Math.sqrt(2) / SIZE + 1
-
-    # Add the player to the things that need to be rendered
-    renderables.push @
 
     dir = c Math.sin(@cameraRotation), Math.cos(@cameraRotation)
     assumedPositions = {}
@@ -598,7 +734,7 @@ class Player extends Mob
         best = distance
 
     # Add the bullets to the things that need to be rendered
-    for bullet in BULLETS
+    for bullet in BULLETS when BOARD.get(bullet.pos.round()).id of visible
       renderables.push bullet
       best = -Infinity
       for tile in bullet.pos.touches()
@@ -640,11 +776,12 @@ class Player extends Mob
     # Render all the renderables in order
     for renderable in renderables
       if renderable.id of visible
-        @seen[renderable.id] = true
+        @seen[renderable.id] ?= new RememberedTile()
+        @seen[renderable.id].update renderable
         renderable.render ctx
       else if renderable.id of @seen
         ctx.globalAlpha = 0.5
-        renderable.render ctx
+        @seen[renderable.id].render ctx
         ctx.globalAlpha = 1
       else if renderable instanceof Mob or renderable instanceof Bullet
         renderable.render ctx
@@ -883,11 +1020,13 @@ toolUseTick = ->
         setTimeout toolUseTick, item.useOnTileTime
         return
       else if item? and item.canShoot
-        BULLETS.push new Bullet PLAYER.pos, PLAYER.pos.to(MOUSE_POS), item.bullet()
+        BULLETS.push new Bullet PLAYER, PLAYER.pos, PLAYER.pos.to(MOUSE_POS), item.bullet()
         setTimeout toolUseTick, item.shootTime
         return
   setTimeout toolUseTick, 1000 / FRAME_RATE
 
+healthBar = document.getElementById 'health-bar'
+healthIndicator = document.getElementById 'health-indicator'
 tick = ->
   # Player movement
   if keysdown[87]
@@ -899,6 +1038,9 @@ tick = ->
   if keysdown[68]
     translateOKComponent PLAYER.pos, c(-Math.cos(PLAYER.cameraRotation), Math.sin(PLAYER.cameraRotation)).mult(-SPEED)
   updateMousePos()
+
+  healthBar.style.width = Math.round(190 * PLAYER.health / 100) + 'px'
+  healthIndicator.innerText = "HP: #{Math.round(PLAYER.health)}/100"
 
   # Bullet movement
   BULLETS = BULLETS.filter (x) -> not x.tick()
@@ -913,10 +1055,20 @@ tick = ->
 
   PLAYER.drawPerspective ctx
 
-  setTimeout tick, 1000 / FRAME_RATE
+  if PLAYER.health > 0
+    setTimeout tick, 1000 / FRAME_RATE
+  else
+    ctx.font = '40px Arial'
+    ctx.fillText 'You die...', (canvas.width / 2 - ctx.measureText('You die...').width / 2), canvas.height / 2
 
 # Generate board
 BOARD = new Board c(500, 500)
+
+for [1...200]
+  for tile in BOARD.getTileArea(
+      c(Math.floor(Math.random() * 500), Math.floor(Math.random() * 200)),
+      Math.ceil(Math.random() * 3) + 1)
+    tile.obstacle = new CopperObstacle()
 
 # The caverns, generated by Game of Life
 oldFlags = (((Math.random() < 0.3) for y in [0...250]) for [0...500])
@@ -948,9 +1100,10 @@ for col, x in oldFlags
   for cell, y in col
     if cell
       BOARD.cells[x][y].terrain = new Terrain assets['dirt']
-      BOARD.cells[x][y].obstacle = new StoneObstacle()
+      BOARD.cells[x][y].obstacle ?= new StoneObstacle()
     else
       BOARD.cells[x][y].terrain = new Terrain assets['dirt']
+      BOARD.cells[x][y].obstacle = null
 
 
 # The forests, which get thicker as you go out
@@ -965,7 +1118,10 @@ for x in [0...500]
 # Add some enemies
 MOBS = []
 for [1..100]
-  mob = new EvilOrb BOARD
+  if Math.random() < 0.5
+    mob = new Warrior BOARD
+  else
+    mob = new Rogue BOARD
   mob.pos = c(Math.random() * 100 - 50 + 250, Math.random() * 100 - 50 + 250)
   MOBS.push mob
 
@@ -973,6 +1129,7 @@ for [1..100]
 PLAYER = new Player BOARD
 PLAYER.pos = c(250, 250)
 PLAYER.cameraRotation = Math.PI / 4
+MOBS.push PLAYER
 
 # Make the inventory list UI
 inventoryList = document.getElementById 'inventory-list'
@@ -1042,6 +1199,7 @@ PLAYER.inventory.on 'change', redrawInventory
 
 PLAYER.inventory.push new Pickaxe()
 PLAYER.inventory.push new Axe()
+PLAYER.inventory.push new Spear()
 
 tick()
 toolUseTick()
