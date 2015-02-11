@@ -1,5 +1,5 @@
 !function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.terra=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var Axe, BOARD, BULLETS, BattleAxe, Board, Bow, Bullet, Copper, CopperObstacle, Dagger, FRAME_RATE, ITEMSIZE, ITEM_DISPLAY_SIZE, IdObject, Inventory, Item, MOBS, MOB_INVENTORY_SIZE, MOB_SPEED, MOUSEDOWN, MOUSE_POS, Mob, Obstacle, PLAYER, Pickaxe, Player, RANGE, RAW_MOUSE_POS, RECIPES, Recipe, RememberedTile, Rogue, SIZE, SPEED, ShadowQueue, Spear, Stone, StoneObstacle, StoneTerrain, StoneTile, Sword, TARGET_FLASHING, TARGET_FLASH_TIME, Terrain, Tile, TreeObstacle, Vector, Wanderer, Warrior, Wood, WoodObstacle, WoodPlank, WoodTerrain, assetName, assets, c, canvas, ctx, getRecipes, healthBar, healthIndicator, inventoryCanvases, itemType, keysdown, recipeList, redrawInventory, renderRecipes, s, tick, toolUseTick, translateOKComponent, uns, updateMousePos, _i, _len, _ref,
+var ASSETS, Axe, BOARD, BULLETS, BattleAxe, Board, Bow, Bullet, Copper, CopperObstacle, Dagger, FRAME_RATE, ITEMSIZE, ITEM_DISPLAY_SIZE, IdObject, Inventory, Item, MOBS, MOB_INVENTORY_SIZE, MOB_SPEED, MOUSEDOWN, MOUSE_POS, Mob, Obstacle, PLAYER, Pickaxe, Player, RANGE, RAW_MOUSE_POS, RECIPES, Recipe, RememberedTile, Rogue, SIZE, SPEED, ShadowQueue, Spear, Stone, StoneObstacle, StoneTerrain, StoneTile, Sword, TARGET_FLASHING, TARGET_FLASH_TIME, Terrain, Tile, TreeObstacle, Vector, Wanderer, Warrior, Wood, WoodObstacle, WoodPlank, WoodTerrain, assetName, assets, c, canvas, checkAssetsLoaded, ctx, getRecipes, healthBar, healthIndicator, inventoryCanvases, itemType, keysdown, onAssetsLoaded, recipeList, redrawInventory, renderRecipes, s, tick, toolUseTick, translateOKComponent, uns, updateMousePos, _i, _len,
   __hasProp = {}.hasOwnProperty,
   __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   __modulo = function(a, b) { return (a % b + +b) % b; };
@@ -14,13 +14,37 @@ BOARD = PLAYER = inventoryCanvases = null;
 
 MOBS = BULLETS = [];
 
+ASSETS = ['stone', 'dirt', 'grass', 'wizard', 'pickaxe', 'axe', 'tree-side', 'tree-top', 'wood', 'battle-axe', 'sword', 'crack1', 'crack2', 'crack3', 'planks', 'tile', 'bullet', 'bow', 'spear', 'copper', 'copper-ore', 'dagger', 'warrior', 'rogue'];
+
 assets = {};
 
-_ref = ['stone', 'dirt', 'grass', 'wizard', 'pickaxe', 'axe', 'tree-side', 'tree-top', 'wood', 'battle-axe', 'sword', 'crack1', 'crack2', 'crack3', 'planks', 'tile', 'bullet', 'bow', 'spear', 'copper', 'copper-ore', 'dagger', 'warrior', 'rogue'];
-for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-  assetName = _ref[_i];
+for (_i = 0, _len = ASSETS.length; _i < _len; _i++) {
+  assetName = ASSETS[_i];
   assets[assetName] = document.getElementById("" + assetName + "-image");
 }
+
+checkAssetsLoaded = function() {
+  var key, val;
+  for (key in assets) {
+    val = assets[key];
+    if (!val.complete) {
+      return false;
+    }
+  }
+  return true;
+};
+
+onAssetsLoaded = function(cb) {
+  var check;
+  check = function() {
+    if (checkAssetsLoaded()) {
+      return cb();
+    } else {
+      return setTimeout(check, 10);
+    }
+  };
+  return setTimeout(check, 10);
+};
 
 SPEED = 0.3;
 
@@ -121,10 +145,10 @@ s = function(x, y) {
 };
 
 uns = function(s) {
-  var x, y, _ref1;
-  _ref1 = s.split(' ').map(function(n) {
+  var x, y, _ref;
+  _ref = s.split(' ').map(function(n) {
     return Number(n);
-  }), x = _ref1[0], y = _ref1[1];
+  }), x = _ref[0], y = _ref[1];
   return c(x, y);
 };
 
@@ -199,15 +223,15 @@ itemType = function(opts) {
     __extends(_Class, _super);
 
     function _Class() {
-      var _ref1, _ref2;
+      var _ref, _ref1;
       _Class.__super__.constructor.apply(this, arguments);
       this.texture = opts.texture;
       this.name = opts.name;
       this.item_id = opts.id;
       this.canUseOnTile = opts.useOnTile != null;
-      this.useOnTileTime = (_ref1 = opts.useOnTileTime) != null ? _ref1 : 1000 / FRAME_RATE;
+      this.useOnTileTime = (_ref = opts.useOnTileTime) != null ? _ref : 1000 / FRAME_RATE;
       this.canShoot = opts.canShoot;
-      this.shootTime = (_ref2 = opts.shootTime) != null ? _ref2 : 1000 / FRAME_RATE;
+      this.shootTime = (_ref1 = opts.shootTime) != null ? _ref1 : 1000 / FRAME_RATE;
       this.bullet = function() {
         return opts.bullet.call(this, arguments);
       };
@@ -549,10 +573,10 @@ Recipe = (function() {
   }
 
   Recipe.prototype.canWork = function(inventory) {
-    var key, val, _ref1;
-    _ref1 = this.needs;
-    for (key in _ref1) {
-      val = _ref1[key];
+    var key, val, _ref;
+    _ref = this.needs;
+    for (key in _ref) {
+      val = _ref[key];
       if (!(key in inventory.counts && inventory.counts[key] >= val)) {
         return false;
       }
@@ -561,19 +585,19 @@ Recipe = (function() {
   };
 
   Recipe.prototype.attempt = function(inventory) {
-    var created, i, key, val, _j, _k, _len1, _ref1, _ref2, _results;
+    var created, i, key, val, _j, _k, _len1, _ref, _ref1, _results;
     if (this.canWork(inventory)) {
-      _ref1 = this.needs;
-      for (key in _ref1) {
-        val = _ref1[key];
+      _ref = this.needs;
+      for (key in _ref) {
+        val = _ref[key];
         for (i = _j = 0; 0 <= val ? _j < val : _j > val; i = 0 <= val ? ++_j : --_j) {
           inventory.removeType(Number(key));
         }
       }
-      _ref2 = this.creates;
+      _ref1 = this.creates;
       _results = [];
-      for (_k = 0, _len1 = _ref2.length; _k < _len1; _k++) {
-        created = _ref2[_k];
+      for (_k = 0, _len1 = _ref1.length; _k < _len1; _k++) {
+        created = _ref1[_k];
         _results.push(inventory.push(new Item.idMap[created]()));
       }
       return _results;
@@ -627,11 +651,11 @@ Tile = (function(_super) {
   }
 
   Tile.prototype.destroyObstacle = function() {
-    var el, _j, _len1, _ref1;
+    var el, _j, _len1, _ref;
     if (this.obstacle != null) {
-      _ref1 = this.obstacle.drops.contents;
-      for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
-        el = _ref1[_j];
+      _ref = this.obstacle.drops.contents;
+      for (_j = 0, _len1 = _ref.length; _j < _len1; _j++) {
+        el = _ref[_j];
         this.inventory.push(el);
       }
       return this.obstacle = null;
@@ -735,7 +759,7 @@ RememberedTile = (function(_super) {
   };
 
   RememberedTile.prototype.render = function(ctx) {
-    var drawCorner, _ref1, _ref2;
+    var drawCorner, _ref, _ref1;
     if (this.obstacle) {
       ctx.translate(canvas.width / 2, canvas.height / 2);
       ctx.rotate(PLAYER.cameraRotation);
@@ -744,24 +768,24 @@ RememberedTile = (function(_super) {
       ctx.translate(0, -SIZE);
       ctx.rotate(PLAYER.cameraRotation);
       ctx.drawImage(this.topTexture, -SIZE / 2, -SIZE / 2, SIZE, SIZE);
-      if ((0.5 < (_ref1 = this.obstacleHealth) && _ref1 <= 0.7)) {
+      if ((0.5 < (_ref = this.obstacleHealth) && _ref <= 0.7)) {
         ctx.drawImage(assets['crack1'], -SIZE / 2, -SIZE / 2, SIZE, SIZE);
-      } else if ((0.3 < (_ref2 = this.obstacleHealth) && _ref2 <= 0.5)) {
+      } else if ((0.3 < (_ref1 = this.obstacleHealth) && _ref1 <= 0.5)) {
         ctx.drawImage(assets['crack2'], -SIZE / 2, -SIZE / 2, SIZE, SIZE);
       } else if (this.obstacleHealth <= 0.3) {
         ctx.drawImage(assets['crack3'], -SIZE / 2, -SIZE / 2, SIZE, SIZE);
       }
       drawCorner = (function(_this) {
         return function(n) {
-          var _ref3, _ref4;
+          var _ref2, _ref3;
           if ((__modulo(PLAYER.cameraRotation + n, 2 * Math.PI)) < Math.PI) {
             ctx.save();
             ctx.rotate(-PLAYER.cameraRotation);
             ctx.transform(Math.cos(PLAYER.cameraRotation + n + Math.PI / 2), Math.sin(PLAYER.cameraRotation + n + Math.PI / 2), 0, 1, 0, 0);
             ctx.drawImage(_this.sideTexture, 0, 0, SIZE, SIZE);
-            if ((0.5 < (_ref3 = _this.obstacleHealth) && _ref3 <= 0.7)) {
+            if ((0.5 < (_ref2 = _this.obstacleHealth) && _ref2 <= 0.7)) {
               ctx.drawImage(assets['crack1'], 0, 0, SIZE, SIZE);
-            } else if ((0.3 < (_ref4 = _this.obstacleHealth) && _ref4 <= 0.5)) {
+            } else if ((0.3 < (_ref3 = _this.obstacleHealth) && _ref3 <= 0.5)) {
               ctx.drawImage(assets['crack2'], 0, 0, SIZE, SIZE);
             } else if (_this.obstacleHealth <= 0.3) {
               ctx.drawImage(assets['crack3'], 0, 0, SIZE, SIZE);
@@ -806,20 +830,20 @@ Inventory = (function(_super) {
   }
 
   Inventory.prototype.clear = function() {
-    var fn, _j, _len1, _ref1, _results;
+    var fn, _j, _len1, _ref, _results;
     this.contents.length = 0;
     this.counts = {};
-    _ref1 = this.handlers.change;
+    _ref = this.handlers.change;
     _results = [];
-    for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
-      fn = _ref1[_j];
+    for (_j = 0, _len1 = _ref.length; _j < _len1; _j++) {
+      fn = _ref[_j];
       _results.push(fn());
     }
     return _results;
   };
 
   Inventory.prototype.push = function(item) {
-    var fn, _base, _j, _len1, _name, _ref1;
+    var fn, _base, _j, _len1, _name, _ref;
     if (this.contents.length >= this.size) {
       return false;
     } else {
@@ -828,9 +852,9 @@ Inventory = (function(_super) {
         _base[_name] = 0;
       }
       this.counts[item.item_id] += 1;
-      _ref1 = this.handlers.change;
-      for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
-        fn = _ref1[_j];
+      _ref = this.handlers.change;
+      for (_j = 0, _len1 = _ref.length; _j < _len1; _j++) {
+        fn = _ref[_j];
         fn();
       }
       return true;
@@ -838,16 +862,16 @@ Inventory = (function(_super) {
   };
 
   Inventory.prototype.remove = function(item) {
-    var el, fn, i, _j, _k, _len1, _len2, _ref1, _ref2;
-    _ref1 = this.contents;
-    for (i = _j = 0, _len1 = _ref1.length; _j < _len1; i = ++_j) {
-      el = _ref1[i];
+    var el, fn, i, _j, _k, _len1, _len2, _ref, _ref1;
+    _ref = this.contents;
+    for (i = _j = 0, _len1 = _ref.length; _j < _len1; i = ++_j) {
+      el = _ref[i];
       if (el === item) {
         this.contents.splice(i, 1);
         this.counts[item.item_id] -= 1;
-        _ref2 = this.handlers.change;
-        for (_k = 0, _len2 = _ref2.length; _k < _len2; _k++) {
-          fn = _ref2[_k];
+        _ref1 = this.handlers.change;
+        for (_k = 0, _len2 = _ref1.length; _k < _len2; _k++) {
+          fn = _ref1[_k];
           fn();
         }
         return item;
@@ -857,16 +881,16 @@ Inventory = (function(_super) {
   };
 
   Inventory.prototype.removeType = function(id) {
-    var el, fn, i, _j, _k, _len1, _len2, _ref1, _ref2;
-    _ref1 = this.contents;
-    for (i = _j = 0, _len1 = _ref1.length; _j < _len1; i = ++_j) {
-      el = _ref1[i];
+    var el, fn, i, _j, _k, _len1, _len2, _ref, _ref1;
+    _ref = this.contents;
+    for (i = _j = 0, _len1 = _ref.length; _j < _len1; i = ++_j) {
+      el = _ref[i];
       if (el.item_id === id) {
         this.contents.splice(i, 1);
         this.counts[id] -= 1;
-        _ref2 = this.handlers.change;
-        for (_k = 0, _len2 = _ref2.length; _k < _len2; _k++) {
-          fn = _ref2[_k];
+        _ref1 = this.handlers.change;
+        for (_k = 0, _len2 = _ref1.length; _k < _len2; _k++) {
+          fn = _ref1[_k];
           fn();
         }
         return el;
@@ -904,8 +928,8 @@ Mob = (function(_super) {
   Mob.prototype.tick = function() {};
 
   Mob.prototype.on = function(event, fn) {
-    var _ref1;
-    return (_ref1 = this.handlers[event]) != null ? _ref1.push(fn) : void 0;
+    var _ref;
+    return (_ref = this.handlers[event]) != null ? _ref.push(fn) : void 0;
   };
 
   Mob.prototype.render = function(ctx) {
@@ -920,24 +944,24 @@ Mob = (function(_super) {
   };
 
   Mob.prototype.kill = function() {
-    var item, targetInventory, _j, _len1, _ref1, _results;
+    var item, targetInventory, _j, _len1, _ref, _results;
     console.log(this.board.get(this.pos.round()));
     targetInventory = this.board.get(this.pos.round()).inventory;
-    _ref1 = this.inventory.contents;
+    _ref = this.inventory.contents;
     _results = [];
-    for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
-      item = _ref1[_j];
+    for (_j = 0, _len1 = _ref.length; _j < _len1; _j++) {
+      item = _ref[_j];
       _results.push(targetInventory.push(item));
     }
     return _results;
   };
 
   Mob.prototype.damage = function(damage) {
-    var fn, _j, _len1, _ref1;
+    var fn, _j, _len1, _ref;
     this.health -= damage;
-    _ref1 = this.handlers['status-change'];
-    for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
-      fn = _ref1[_j];
+    _ref = this.handlers['status-change'];
+    for (_j = 0, _len1 = _ref.length; _j < _len1; _j++) {
+      fn = _ref[_j];
       fn();
     }
     if (this.health < 0) {
@@ -963,9 +987,9 @@ Wanderer = (function(_super) {
   }
 
   Wanderer.prototype.tick = function() {
-    var _ref1, _ref2;
+    var _ref, _ref1;
     translateOKComponent(this.pos, c(Math.sin(this.currentDirection), Math.cos(this.currentDirection)).mult(MOB_SPEED));
-    if (!((0 < (_ref1 = this.pos.x) && _ref1 < this.board.dimensions.x) && (0 < (_ref2 = this.pos.y) && _ref2 < this.board.dimensions.y))) {
+    if (!((0 < (_ref = this.pos.x) && _ref < this.board.dimensions.x) && (0 < (_ref1 = this.pos.y) && _ref1 < this.board.dimensions.y))) {
       this.currentDirection *= -1;
     }
     if (Math.random() < 0.01) {
@@ -1028,7 +1052,7 @@ Player = (function(_super) {
   };
 
   Player.prototype.drawPerspective = function(ctx) {
-    var assumedPositions, best, bullet, dir, distance, mob, renderable, renderables, target, tile, visible, _base, _j, _k, _l, _len1, _len2, _len3, _len4, _len5, _len6, _m, _n, _name, _o, _ref1, _ref2, _ref3;
+    var assumedPositions, best, bullet, dir, distance, mob, renderable, renderables, target, tile, visible, _base, _j, _k, _l, _len1, _len2, _len3, _len4, _len5, _len6, _m, _n, _name, _o, _ref, _ref1, _ref2;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     renderables = this.board.getTileArea(this.pos, canvas.width * Math.sqrt(2) / (2 * SIZE) + 1);
     visible = this.board.shadowcast(this.pos, (function(n) {
@@ -1037,9 +1061,9 @@ Player = (function(_super) {
     dir = c(Math.sin(this.cameraRotation), Math.cos(this.cameraRotation));
     assumedPositions = {};
     best = -Infinity;
-    _ref1 = PLAYER.pos.touches();
-    for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
-      tile = _ref1[_j];
+    _ref = PLAYER.pos.touches();
+    for (_j = 0, _len1 = _ref.length; _j < _len1; _j++) {
+      tile = _ref[_j];
       distance = PLAYER.pos.to(tile).scalarProject(dir);
       if (distance > best) {
         assumedPositions[PLAYER.id] = tile;
@@ -1053,9 +1077,9 @@ Player = (function(_super) {
       }
       renderables.push(bullet);
       best = -Infinity;
-      _ref2 = bullet.pos.touches();
-      for (_l = 0, _len3 = _ref2.length; _l < _len3; _l++) {
-        tile = _ref2[_l];
+      _ref1 = bullet.pos.touches();
+      for (_l = 0, _len3 = _ref1.length; _l < _len3; _l++) {
+        tile = _ref1[_l];
         distance = PLAYER.pos.to(tile).scalarProject(dir);
         if (distance > best) {
           assumedPositions[bullet.id] = tile;
@@ -1070,9 +1094,9 @@ Player = (function(_super) {
       }
       renderables.push(mob);
       best = -Infinity;
-      _ref3 = mob.pos.touches();
-      for (_n = 0, _len5 = _ref3.length; _n < _len5; _n++) {
-        tile = _ref3[_n];
+      _ref2 = mob.pos.touches();
+      for (_n = 0, _len5 = _ref2.length; _n < _len5; _n++) {
+        tile = _ref2[_n];
         distance = PLAYER.pos.to(tile).scalarProject(dir);
         if (distance > best) {
           assumedPositions[mob.id] = tile;
@@ -1187,7 +1211,7 @@ exports.ShadowQueue = ShadowQueue = (function() {
   };
 
   ShadowQueue.prototype.check = function(startAngle, endAngle) {
-    var begin, end, start, _ref1;
+    var begin, end, start, _ref;
     startAngle = __modulo(startAngle, 360);
     if (endAngle !== 360) {
       endAngle = __modulo(endAngle, 360);
@@ -1195,7 +1219,7 @@ exports.ShadowQueue = ShadowQueue = (function() {
     if (startAngle > endAngle) {
       begin = this.check(0, endAngle);
       end = this.check(startAngle, 360);
-      if (((_ref1 = ShadowQueue.PARTIAL) === begin || _ref1 === end) || begin !== end) {
+      if (((_ref = ShadowQueue.PARTIAL) === begin || _ref === end) || begin !== end) {
         return ShadowQueue.PARTIAL;
       } else {
         return begin;
@@ -1234,13 +1258,13 @@ Board = (function(_super) {
     this.dimensions = dimensions;
     Board.__super__.constructor.apply(this, arguments);
     this.cells = (function() {
-      var _j, _ref1, _results;
+      var _j, _ref, _results;
       _results = [];
-      for (i = _j = 0, _ref1 = this.dimensions.x; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; i = 0 <= _ref1 ? ++_j : --_j) {
+      for (i = _j = 0, _ref = this.dimensions.x; 0 <= _ref ? _j < _ref : _j > _ref; i = 0 <= _ref ? ++_j : --_j) {
         _results.push((function() {
-          var _k, _ref2, _results1;
+          var _k, _ref1, _results1;
           _results1 = [];
-          for (j = _k = 0, _ref2 = this.dimensions.y; 0 <= _ref2 ? _k < _ref2 : _k > _ref2; j = 0 <= _ref2 ? ++_k : --_k) {
+          for (j = _k = 0, _ref1 = this.dimensions.y; 0 <= _ref1 ? _k < _ref1 : _k > _ref1; j = 0 <= _ref1 ? ++_k : --_k) {
             _results1.push(new Tile(this, c(i, j), null, null));
           }
           return _results1;
@@ -1251,35 +1275,35 @@ Board = (function(_super) {
   }
 
   Board.prototype.getCircle = function(_arg, r) {
-    var coords, i, x, y, _j, _k, _l, _m, _ref1, _ref2, _ref3, _ref4;
+    var coords, i, x, y, _j, _k, _l, _m, _ref, _ref1, _ref2, _ref3;
     x = _arg.x, y = _arg.y;
     x = Math.round(x);
     y = Math.round(y);
     r = Math.ceil(r);
     coords = [];
-    for (i = _j = 0, _ref1 = r * 2; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; i = 0 <= _ref1 ? ++_j : --_j) {
+    for (i = _j = 0, _ref = r * 2; 0 <= _ref ? _j < _ref : _j > _ref; i = 0 <= _ref ? ++_j : --_j) {
       coords.push(c(x - r, y + r - i));
     }
-    for (i = _k = 0, _ref2 = r * 2; 0 <= _ref2 ? _k < _ref2 : _k > _ref2; i = 0 <= _ref2 ? ++_k : --_k) {
+    for (i = _k = 0, _ref1 = r * 2; 0 <= _ref1 ? _k < _ref1 : _k > _ref1; i = 0 <= _ref1 ? ++_k : --_k) {
       coords.push(c(x - r + i, y - r));
     }
-    for (i = _l = 0, _ref3 = r * 2; 0 <= _ref3 ? _l < _ref3 : _l > _ref3; i = 0 <= _ref3 ? ++_l : --_l) {
+    for (i = _l = 0, _ref2 = r * 2; 0 <= _ref2 ? _l < _ref2 : _l > _ref2; i = 0 <= _ref2 ? ++_l : --_l) {
       coords.push(c(x + r, y - r + i));
     }
-    for (i = _m = 0, _ref4 = r * 2; 0 <= _ref4 ? _m < _ref4 : _m > _ref4; i = 0 <= _ref4 ? ++_m : --_m) {
+    for (i = _m = 0, _ref3 = r * 2; 0 <= _ref3 ? _m < _ref3 : _m > _ref3; i = 0 <= _ref3 ? ++_m : --_m) {
       coords.push(c(x + r - i, y + r));
     }
     return coords;
   };
 
   Board.prototype.getCoordinateArea = function(coord, max) {
-    var all, circle, el, r, _j, _k, _len1, _ref1, _ref2;
+    var all, circle, el, r, _j, _k, _len1, _ref, _ref1;
     all = [coord.round()];
     for (r = _j = 0; 0 <= max ? _j <= max : _j >= max; r = 0 <= max ? ++_j : --_j) {
       circle = this.getCircle(coord, r);
       for (_k = 0, _len1 = circle.length; _k < _len1; _k++) {
         el = circle[_k];
-        if ((0 <= (_ref1 = el.x) && _ref1 < this.dimensions.x) && (0 <= (_ref2 = el.y) && _ref2 < this.dimensions.y)) {
+        if ((0 <= (_ref = el.x) && _ref < this.dimensions.x) && (0 <= (_ref1 = el.y) && _ref1 < this.dimensions.y)) {
           all.push(el);
         }
       }
@@ -1296,7 +1320,7 @@ Board = (function(_super) {
   };
 
   Board.prototype.shadowcast = function(coord, see, max) {
-    var circle, end, i, queue, r, start, visible, x, y, _j, _len1, _ref1;
+    var circle, end, i, queue, r, start, visible, x, y, _j, _len1, _ref;
     if (max == null) {
       max = 10;
     }
@@ -1309,7 +1333,7 @@ Board = (function(_super) {
       r++;
       circle = this.getCircle(coord, r);
       for (i = _j = 0, _len1 = circle.length; _j < _len1; i = ++_j) {
-        _ref1 = circle[i], x = _ref1.x, y = _ref1.y;
+        _ref = circle[i], x = _ref.x, y = _ref.y;
         if (!((0 <= x && x < this.dimensions.x) && (0 <= y && y < this.dimensions.y))) {
           continue;
         }
@@ -1329,18 +1353,18 @@ Board = (function(_super) {
   };
 
   Board.prototype.allCells = function() {
-    var cell, col, i, j, strs, _j, _k, _len1, _len2, _ref1;
+    var cell, col, i, j, strs, _j, _k, _len1, _len2, _ref;
     strs = (function() {
-      var _j, _ref1, _results;
+      var _j, _ref, _results;
       _results = [];
-      for (i = _j = 0, _ref1 = this.dimensions.height; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; i = 0 <= _ref1 ? ++_j : --_j) {
+      for (i = _j = 0, _ref = this.dimensions.height; 0 <= _ref ? _j < _ref : _j > _ref; i = 0 <= _ref ? ++_j : --_j) {
         _results.push('');
       }
       return _results;
     }).call(this);
-    _ref1 = this.cells;
-    for (i = _j = 0, _len1 = _ref1.length; _j < _len1; i = ++_j) {
-      col = _ref1[i];
+    _ref = this.cells;
+    for (i = _j = 0, _len1 = _ref.length; _j < _len1; i = ++_j) {
+      col = _ref[i];
       for (j = _k = 0, _len2 = col.length; _k < _len2; j = ++_k) {
         cell = col[j];
         strs[j] += cell.charRepr();
@@ -1379,7 +1403,7 @@ canvas.addEventListener('mousewheel', function(event) {
 keysdown = {};
 
 document.body.addEventListener('keydown', function(event) {
-  var el, flagForPickup, i, item, playerTile, _j, _k, _len1, _len2, _ref1, _results;
+  var el, flagForPickup, i, item, playerTile, _j, _k, _len1, _len2, _ref, _results;
   keysdown[event.which] = true;
   if (event.which === 90) {
     item = PLAYER.inventory.contents[PLAYER.usingItem];
@@ -1392,9 +1416,9 @@ document.body.addEventListener('keydown', function(event) {
   } else if (event.which === 88) {
     playerTile = BOARD.get(PLAYER.pos.round());
     flagForPickup = [];
-    _ref1 = playerTile.inventory.contents;
-    for (i = _j = 0, _len1 = _ref1.length; _j < _len1; i = ++_j) {
-      el = _ref1[i];
+    _ref = playerTile.inventory.contents;
+    for (i = _j = 0, _len1 = _ref.length; _j < _len1; i = ++_j) {
+      el = _ref[i];
       flagForPickup.push(el);
     }
     _results = [];
@@ -1415,17 +1439,17 @@ document.body.addEventListener('keyup', function(event) {
 });
 
 translateOKComponent = function(pos, v) {
-  var _ref1, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8;
-  if (v.x > 0 && (((_ref1 = BOARD.get(Math.ceil(pos.x + v.x), Math.floor(pos.y))) != null ? typeof _ref1.passable === "function" ? _ref1.passable() : void 0 : void 0) || ((_ref2 = BOARD.get(Math.ceil(pos.x + v.x), Math.ceil(pos.y))) != null ? typeof _ref2.passable === "function" ? _ref2.passable() : void 0 : void 0))) {
+  var _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
+  if (v.x > 0 && (((_ref = BOARD.get(Math.ceil(pos.x + v.x), Math.floor(pos.y))) != null ? typeof _ref.passable === "function" ? _ref.passable() : void 0 : void 0) || ((_ref1 = BOARD.get(Math.ceil(pos.x + v.x), Math.ceil(pos.y))) != null ? typeof _ref1.passable === "function" ? _ref1.passable() : void 0 : void 0))) {
     pos.x = Math.ceil(pos.x);
-  } else if (v.x < 0 && (((_ref3 = BOARD.get(Math.floor(pos.x + v.x), Math.floor(pos.y))) != null ? typeof _ref3.passable === "function" ? _ref3.passable() : void 0 : void 0) || ((_ref4 = BOARD.get(Math.floor(pos.x + v.x), Math.ceil(pos.y))) != null ? typeof _ref4.passable === "function" ? _ref4.passable() : void 0 : void 0))) {
+  } else if (v.x < 0 && (((_ref2 = BOARD.get(Math.floor(pos.x + v.x), Math.floor(pos.y))) != null ? typeof _ref2.passable === "function" ? _ref2.passable() : void 0 : void 0) || ((_ref3 = BOARD.get(Math.floor(pos.x + v.x), Math.ceil(pos.y))) != null ? typeof _ref3.passable === "function" ? _ref3.passable() : void 0 : void 0))) {
     pos.x = Math.floor(pos.x);
   } else {
     pos.x += v.x;
   }
-  if (v.y > 0 && (((_ref5 = BOARD.get(Math.floor(pos.x), Math.ceil(pos.y + v.y))) != null ? typeof _ref5.passable === "function" ? _ref5.passable() : void 0 : void 0) || ((_ref6 = BOARD.get(Math.ceil(pos.x), Math.ceil(pos.y + v.y))) != null ? typeof _ref6.passable === "function" ? _ref6.passable() : void 0 : void 0))) {
+  if (v.y > 0 && (((_ref4 = BOARD.get(Math.floor(pos.x), Math.ceil(pos.y + v.y))) != null ? typeof _ref4.passable === "function" ? _ref4.passable() : void 0 : void 0) || ((_ref5 = BOARD.get(Math.ceil(pos.x), Math.ceil(pos.y + v.y))) != null ? typeof _ref5.passable === "function" ? _ref5.passable() : void 0 : void 0))) {
     return pos.y = Math.ceil(pos.y);
-  } else if (v.y < 0 && (((_ref7 = BOARD.get(Math.floor(pos.x), Math.floor(pos.y + v.y))) != null ? typeof _ref7.passable === "function" ? _ref7.passable() : void 0 : void 0) || ((_ref8 = BOARD.get(Math.ceil(pos.x), Math.floor(pos.y + v.y))) != null ? typeof _ref8.passable === "function" ? _ref8.passable() : void 0 : void 0))) {
+  } else if (v.y < 0 && (((_ref6 = BOARD.get(Math.floor(pos.x), Math.floor(pos.y + v.y))) != null ? typeof _ref6.passable === "function" ? _ref6.passable() : void 0 : void 0) || ((_ref7 = BOARD.get(Math.ceil(pos.x), Math.floor(pos.y + v.y))) != null ? typeof _ref7.passable === "function" ? _ref7.passable() : void 0 : void 0))) {
     return pos.y = Math.floor(pos.y);
   } else {
     return pos.y += v.y;
@@ -1587,13 +1611,13 @@ ctx.fillStyle = '#FFF';
 
 ctx.fillText('Generating map...', canvas.width / 2 - ctx.measureText('Generating map...').width / 2, canvas.height / 2);
 
-setTimeout((function() {
-  var aliveNeighbors, cell, col, i, inventoryList, inventoryTable, j, mob, neighbor, newFlags, oldFlags, tile, tr, x, y, _base, _fn, _j, _k, _l, _len1, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _m, _n, _o, _p, _q, _r, _ref1, _ref10, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _s, _t, _u, _v, _w, _x;
+onAssetsLoaded(function() {
+  var aliveNeighbors, cell, col, i, inventoryList, inventoryTable, j, mob, neighbor, newFlags, oldFlags, tile, tr, x, y, _base, _fn, _j, _k, _l, _len1, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _m, _n, _o, _p, _q, _r, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _s, _t, _u, _v, _w, _x;
   BOARD = new Board(c(500, 500));
   for (_j = 1; _j < 200; _j++) {
-    _ref1 = BOARD.getTileArea(c(Math.floor(Math.random() * 500), Math.floor(Math.random() * 200)), Math.ceil(Math.random() * 3) + 1);
-    for (_k = 0, _len1 = _ref1.length; _k < _len1; _k++) {
-      tile = _ref1[_k];
+    _ref = BOARD.getTileArea(c(Math.floor(Math.random() * 500), Math.floor(Math.random() * 200)), Math.ceil(Math.random() * 3) + 1);
+    for (_k = 0, _len1 = _ref.length; _k < _len1; _k++) {
+      tile = _ref[_k];
       tile.obstacle = new CopperObstacle();
     }
   }
@@ -1633,9 +1657,9 @@ setTimeout((function() {
       for (y = _n = 0, _len3 = col.length; _n < _len3; y = ++_n) {
         cell = col[y];
         aliveNeighbors = 0;
-        _ref10 = [(_ref2 = oldFlags[x + 1]) != null ? _ref2[y] : void 0, (_ref3 = oldFlags[x]) != null ? _ref3[y + 1] : void 0, (_ref4 = oldFlags[x + 1]) != null ? _ref4[y + 1] : void 0, (_ref5 = oldFlags[x + 1]) != null ? _ref5[y - 1] : void 0, (_ref6 = oldFlags[x - 1]) != null ? _ref6[y + 1] : void 0, (_ref7 = oldFlags[x - 1]) != null ? _ref7[y - 1] : void 0, (_ref8 = oldFlags[x - 1]) != null ? _ref8[y] : void 0, (_ref9 = oldFlags[x]) != null ? _ref9[y - 1] : void 0];
-        for (_o = 0, _len4 = _ref10.length; _o < _len4; _o++) {
-          neighbor = _ref10[_o];
+        _ref9 = [(_ref1 = oldFlags[x + 1]) != null ? _ref1[y] : void 0, (_ref2 = oldFlags[x]) != null ? _ref2[y + 1] : void 0, (_ref3 = oldFlags[x + 1]) != null ? _ref3[y + 1] : void 0, (_ref4 = oldFlags[x + 1]) != null ? _ref4[y - 1] : void 0, (_ref5 = oldFlags[x - 1]) != null ? _ref5[y + 1] : void 0, (_ref6 = oldFlags[x - 1]) != null ? _ref6[y - 1] : void 0, (_ref7 = oldFlags[x - 1]) != null ? _ref7[y] : void 0, (_ref8 = oldFlags[x]) != null ? _ref8[y - 1] : void 0];
+        for (_o = 0, _len4 = _ref9.length; _o < _len4; _o++) {
+          neighbor = _ref9[_o];
           if (neighbor) {
             aliveNeighbors++;
           }
@@ -1730,7 +1754,7 @@ setTimeout((function() {
   PLAYER.inventory.push(new Spear());
   tick();
   return toolUseTick();
-}), 1);
+});
 
 
 },{}]},{},[1])(1)
