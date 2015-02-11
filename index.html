@@ -23,6 +23,24 @@
       #recipe-list canvas {
         margin: 2px;
       }
+      #status-bars {
+        padding: 5px;
+      }
+      #health-wrapper {
+        width: 190px;
+        height: 20px;
+      }
+      #health-indicator {
+        position: absolute;
+        z-index: 2;
+      }
+      #health-bar {
+        z-index: 1;
+        background-color: #F00;
+        width: 190px;
+        height: 20px;
+        position: absolute;
+      }
     </style>
     <link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.min.css"/>
     <link rel="stylesheet" href="bower_components/tooltipster/css/tooltipster.css"/>
@@ -39,12 +57,28 @@
     <img id='wood-image' src="assets/wood.png"/>
     <img id='battle-axe-image' src="assets/battle-axe.png"/>
     <img id='sword-image' src="assets/sword.png"/>
+    <img id='crack1-image' src="assets/crack1.png"/>
+    <img id='crack2-image' src="assets/crack2.png"/>
+    <img id='crack3-image' src="assets/crack3.png"/>
+    <img id='planks-image' src="assets/planks.png"/>
+    <img id='tile-image' src="assets/tile.png"/>
+    <img id='bullet-image' src="assets/bullet.png"/>
+    <img id='bow-image' src="assets/bow.png"/>
+    <img id='warrior-image' src="assets/warrior.png"/>
+    <img id='spear-image' src="assets/spear.png"/>
+    <img id='copper-image' src="assets/copper.png"/>
+    <img id='copper-ore-image' src="assets/copper-ore.png"/>
+    <img id='dagger-image' src="assets/dagger.png"/>
+    <img id='rogue-image' src="assets/rogue.png"/>
   </div>
   <body>
     <center>
       <table style='border-radius: 5px; overflow: hidden;'>
         <tr>
           <td style='background-color: #777; vertical-align: top; width: 200px;'>
+            <div id="status-bars">
+              <div id="health-wrapper"><span id="health-indicator"></span><div id="health-bar"></div></div>
+            </div>
             <center id='inventory-list'></center>
             <center id='recipe-list'></center>
           </td>
