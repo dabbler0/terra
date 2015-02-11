@@ -5,9 +5,7 @@ MOB_SPEED = 0.2
 
 BOARD = PLAYER = inventoryCanvases = null
 MOBS = BULLETS = []
-
-assets = {}
-for assetName in [
+ASSETS = [
       'stone'
       'dirt'
       'grass'
@@ -33,7 +31,24 @@ for assetName in [
       'warrior'
       'rogue'
     ]
+
+assets = {}
+for assetName in ASSETS
   assets[assetName] = document.getElementById "#{assetName}-image"
+
+checkAssetsLoaded = ->
+  for key, val of assets
+    unless val.complete
+      return false
+  return true
+
+onAssetsLoaded = (cb) ->
+  check = ->
+    if checkAssetsLoaded()
+      cb()
+    else
+      setTimeout check, 10
+  setTimeout check, 10
 
 SPEED = 0.3
 SIZE = 40
@@ -1103,7 +1118,7 @@ ctx.fillStyle = '#FFF'
 ctx.fillText 'Generating map...', (canvas.width / 2 - ctx.measureText('Generating map...').width / 2), canvas.height / 2
 
 
-setTimeout (->
+onAssetsLoaded ->
   # Generate board
   BOARD = new Board c(500, 500)
 
@@ -1210,4 +1225,3 @@ setTimeout (->
 
   tick()
   toolUseTick()
-), 1
