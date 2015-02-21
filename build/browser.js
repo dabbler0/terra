@@ -1921,7 +1921,7 @@ var Board, BoardCoordinate, GhostBoard, ITEMSIZE, Inventory, Item, Mob, Obstacle
 
 serial = require('./serialization.coffee');
 
-RESOURCES = ['/assets/wizard.png', '/assets/stone.png', '/assets/dirt.png', '/assets/grass.png', '/assets/black.png'];
+RESOURCES = ['/assets/wizard.png', '/assets/stone.png', '/assets/dirt.png', '/assets/grass.png', '/assets/black.png', '/assets/tree-top.png', '/assets/tree-side.png'];
 
 SIZE = 40;
 
@@ -1951,7 +1951,9 @@ TEXTURE_IDS = {
   'stone': 1,
   'dirt': 2,
   'grass': 3,
-  'black': 4
+  'black': 4,
+  'tree-top': 5,
+  'tree-side': 6
 };
 
 exports.Vector = Vector = serial.SerialType([[serial.Float, 'x'], [serial.Float, 'y']], {

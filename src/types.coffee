@@ -6,6 +6,8 @@ RESOURCES = [
   '/assets/dirt.png'
   '/assets/grass.png'
   '/assets/black.png'
+  '/assets/tree-top.png'
+  '/assets/tree-side.png'
 ]
 
 SIZE = 40
@@ -30,6 +32,8 @@ TEXTURE_IDS = {
   'dirt': 2
   'grass': 3
   'black': 4
+  'tree-top': 5
+  'tree-side': 6
 }
 
 exports.Vector = Vector = serial.SerialType [
