@@ -16,8 +16,8 @@ MOBS = []
 PLAYERS = []
 BOARD = new types.Board new types.BoardCoordinate 500, 500
 BOARD.each (x, y, tile) ->
-  if Math.random() < 0.1
-    tile.obstacle = new types.Obstacle (new types.Texture 'stone'), (new types.Texture 'stone')
+  if Math.random() < Math.sqrt((x - 250) ** 2 + (y - 250) ** 2) / 250
+    tile.obstacle = new types.Obstacle (new types.Texture 'tree-top'), (new types.Texture 'tree-side')
     tile.terrain = new types.Terrain (new types.Texture 'dirt')
   else
     tile.terrain = new types.Terrain (new types.Texture 'grass')
