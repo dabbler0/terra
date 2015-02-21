@@ -8,7 +8,7 @@ RESOURCES = [
   '/assets/black.png'
 ]
 
-SIZE = 30
+SIZE = 40
 ITEMSIZE = 15
 
 # loadAssets, which works on client-side only
@@ -38,6 +38,8 @@ exports.Vector = Vector = serial.SerialType [
 ], {
   constructor: (@x, @y) ->
 
+  equals: (other) -> @x is other.x and @y is other.y
+
   touches: ->
     [
       new BoardCoordinate Math.floor(@x), Math.floor(@y)
@@ -61,7 +63,10 @@ exports.Vector = Vector = serial.SerialType [
 
   mag: -> Math.sqrt @x * @x + @y * @y
 
-  normalize: -> @mult(1 / @mag())
+  normalize: ->
+    mag = @mag()
+    if mag is 0 then new Vector 0, 0
+    else @mult(1 / @mag())
 
   distance: (other) ->
     @to(other).mag()
@@ -94,6 +99,8 @@ exports.BoardCoordinate = BoardCoordinate = serial.SerialType Vector, [
   [serial.Int, 'y']
 ], {
   constructor: (@x, @y) ->
+
+  round: -> @
 
   dump: -> @x + ',' + @y
 }
@@ -129,6 +136,10 @@ exports.ObstacleView = ObstacleView = serial.SerialType [
   constructor: (obstacle) ->
     if obstacle?
       @top = obstacle.topTexture; @side = obstacle.sideTexture
+
+  equals: (other) ->
+    @top.texture_id is other.top.texture_id and
+    @side.texture_id is other.side.texture_id
 }
 
 exports.Inventory = Inventory = serial.SerialType [
@@ -176,6 +187,14 @@ exports.TileView = TileView = serial.SerialType [
         @obstacle = tile.obstacle.view()
       if tile.inventory.length() > 0
         @item = tile.inventory.get(0).texture
+
+  equals: (other) ->
+    @pos.equals(other.pos) and
+    @terrain.texture_id is other.terrain.texture_id and
+    @obstacle? is other.obstacle? and
+    ((not @obstacle?) or @obstacle.equals(other.obstacle))
+
+  impassable: -> @obstacle?
 
   # Render works only in the browser, operates on a canvas object
   render: (canvas, ctx, cameraRotation, pos) ->
@@ -233,20 +252,27 @@ exports.TileView = TileView = serial.SerialType [
       ctx.resetTransform()
 }
 
-exports.VisionField = VisionField = serial.SerialType [
-  [serial.Array(TileView), 'tiles']
-], {
-  constructor: (@tiles) ->
-}
-
 exports.Mob = Mob = serial.SerialType [
   [Texture, 'texture']
   [Vector, 'pos']
+  [Vector, 'velocity']
   [serial.Int, 'health']
   [Inventory, 'inventory']
 ], {
   constructor: (@texture, @pos) ->
+    @velocity = new Vector 0, 0
     @inventory = new Inventory()
+
+  # Render works on the client only
+  render: (canvas, ctx, cameraRotation, pos)->
+    ctx.translate canvas.width / 2, canvas.height / 2
+    ctx.rotate cameraRotation
+    ctx.translate SIZE * (@pos.x - pos.x), SIZE * (@pos.y - pos.y)
+    ctx.strokeStyle = '#F00'
+    ctx.strokeRect -SIZE / 2, -SIZE / 2, SIZE, SIZE
+    ctx.rotate -cameraRotation
+    ctx.drawImage @texture.get(), -SIZE/2, -SIZE, SIZE, SIZE
+    ctx.resetTransform()
 }
 
 exports.Player = Player = serial.SerialType Mob, [
@@ -255,7 +281,15 @@ exports.Player = Player = serial.SerialType Mob, [
     @texture = new Texture 'wizard'
     @health = 100
     @pos = new Vector 250, 250 # TODO this is arbitrary
+    @velocity = new Vector 0, 0
     @inventory = new Inventory()
+}
+
+exports.VisionField = VisionField = serial.SerialType [
+  [serial.Array(TileView), 'tiles']
+  [serial.Array(Mob), 'mobs']
+], {
+  constructor: (@tiles, @mobs) ->
 }
 
 # Functional classes
@@ -339,7 +373,7 @@ exports.Board = class Board
         all.push el
     return all
 
-  getTileArea: (coord, max) -> @getCoordinateArea(coord, max).map (x) => @get(x)
+  getTileArea: (coord, max) -> @getCoordinateArea(coord, max).map((x) => @get(x))
 
   shadowcast: (coord, see, max) ->
     visible = {}
@@ -395,3 +429,29 @@ exports.GhostBoard = class GhostBoard extends Board
     for view in views
       @cells[view.pos.x][view.pos.y] = view
     return true
+
+exports.translateOKComponent = (board, pos, v) ->
+  if v.x > 0 and (
+      board.get(Math.ceil(pos.x + v.x), Math.floor(pos.y))?.impassable?() or
+      board.get(Math.ceil(pos.x + v.x), Math.ceil(pos.y))?.impassable?()
+    )
+    pos.x = Math.ceil pos.x
+  else if v.x < 0 and (
+      board.get(Math.floor(pos.x + v.x), Math.floor(pos.y))?.impassable?() or
+      board.get(Math.floor(pos.x + v.x), Math.ceil(pos.y))?.impassable?()
+    )
+    pos.x = Math.floor pos.x
+  else
+    pos.x += v.x
+  if v.y > 0 and (
+      board.get(Math.floor(pos.x), Math.ceil(pos.y + v.y))?.impassable?() or
+      board.get(Math.ceil(pos.x), Math.ceil(pos.y + v.y))?.impassable?()
+    )
+    pos.y = Math.ceil pos.y
+  else if v.y < 0 and (
+      board.get(Math.floor(pos.x), Math.floor(pos.y + v.y))?.impassable?() or
+      board.get(Math.ceil(pos.x), Math.floor(pos.y + v.y))?.impassable?()
+    )
+    pos.y = Math.floor pos.y
+  else
+    pos.y += v.y

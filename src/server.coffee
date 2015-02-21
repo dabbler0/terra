@@ -1,7 +1,9 @@
 types = require './types.coffee'
-FRAME_RATE = 30
-VISION_MAX = 15
-SPEED = 0.3
+b64 = require './base64.js'
+EMIT_RATE = 30
+SIM_RATE = 50
+VISION_MAX = 11
+SPEED = 6 / SIM_RATE # Tiles per Second
 
 # Set up the server with socket.io
 express = require 'express'; app = express()
@@ -10,6 +12,7 @@ io = require('socket.io')(http)
 
 app.use '/', express.static __dirname + '/..'
 
+MOBS = []
 PLAYERS = []
 BOARD = new types.Board new types.BoardCoordinate 500, 500
 BOARD.each (x, y, tile) ->
@@ -21,49 +24,63 @@ BOARD.each (x, y, tile) ->
 
 io.on 'connection', (socket) ->
   player = new types.Player()
-  PLAYERS.push {player, socket}
+  PLAYERS.push {player, socket, board: new types.GhostBoard(BOARD.dimensions)}
+  MOBS.push player
 
   socket.on 'move', (vector) ->
-    vector = types.Vector.parse(vector).value
-    translateOKComponent player.pos, vector
+    player.velocity = types.Vector.parse(vector).value
 
-translateOKComponent = (pos, v) ->
-  if v.x > 0 and (
-      BOARD.get(Math.ceil(pos.x + v.x), Math.floor(pos.y))?.impassable?() or
-      BOARD.get(Math.ceil(pos.x + v.x), Math.ceil(pos.y))?.impassable?()
-    )
-    pos.x = Math.ceil pos.x
-  else if v.x < 0 and (
-      BOARD.get(Math.floor(pos.x + v.x), Math.floor(pos.y))?.impassable?() or
-      BOARD.get(Math.floor(pos.x + v.x), Math.ceil(pos.y))?.impassable?()
-    )
-    pos.x = Math.floor pos.x
-  else
-    pos.x += v.x
-  if v.y > 0 and (
-      BOARD.get(Math.floor(pos.x), Math.ceil(pos.y + v.y))?.impassable?() or
-      BOARD.get(Math.ceil(pos.x), Math.ceil(pos.y + v.y))?.impassable?()
-    )
-    pos.y = Math.ceil pos.y
-  else if v.y < 0 and (
-      BOARD.get(Math.floor(pos.x), Math.floor(pos.y + v.y))?.impassable?() or
-      BOARD.get(Math.ceil(pos.x), Math.floor(pos.y + v.y))?.impassable?()
-    )
-    pos.y = Math.floor pos.y
-  else
-    pos.y += v.y
+  socket.on 'disconnect', ->
+    # Remove from players
+    for el, i in PLAYERS
+      if el.socket is socket
+        PLAYERS.splice i, 1
+        break
 
-tick = ->
-  for player in PLAYERS
+    # Remove from mobs
+    for el, i in MOBS
+      if el is player
+        MOBS.splice i, 1
+        break
+    return null
+
+load = 0
+
+emit = ->
+  for player, i in PLAYERS
+    visible = BOARD.shadowcast(player.player.pos.round(), ((tile) -> not tile.obstacle?), VISION_MAX)
+    # Tile vision -- only the updates
+    tileVision = BOARD.getTileArea(player.player.pos.round(), VISION_MAX)
+      .filter((x) -> (x.pos.dump() of visible))
+      .map((x) -> x.view())
+      .filter((x) -> (not x.equals(player.board.get(x.pos))))
+
+    # Apply updates
+    player.board.update tileVision
+
+    mobVision = MOBS.filter((x) -> x.pos.round().dump() of visible)
+
+    # Package in a known-type VisionField
+    field = new types.VisionField tileVision, mobVision
+
     player.socket.emit 'update', {
       self: player.player.serialize()
-      vision: new types.VisionField(
-        BOARD.getVision(player.player.pos.round(), ((tile) -> not tile.obstacle?), VISION_MAX).map (tile) -> tile.view()
-      ).serialize()
+      vision: (buffer = field.serialize())
     }
-  setTimeout tick, 1000 / FRAME_RATE
 
-tick()
+    load /= 2
+    load += buffer.byteLength
 
-http.listen 8080, ->
-  console.log 'Listening on 8080'
+  setTimeout emit, 1000 / EMIT_RATE
+
+emit()
+
+sim = ->
+  for player in PLAYERS
+    types.translateOKComponent BOARD, player.player.pos, player.player.velocity
+  setTimeout sim, 1000 / SIM_RATE
+
+sim()
+
+http.listen process.env.PORT, ->
+  console.log 'Listening on', process.env.PORT
