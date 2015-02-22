@@ -35,7 +35,7 @@ assets.loadAssets ->
 
   socket.on 'update', (data) ->
     PLAYER.pos = types.Vector.parse(data.pos).value
-    PLAYER.velocity = types.Vector.parse(data.velocity).value
+    PLAYER.velocity = types.Vector.parse(data.vel).value
 
     field = types.VisionField.parse(data.vision).value
     BOARD.update field.tiles
