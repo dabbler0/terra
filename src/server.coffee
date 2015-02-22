@@ -1,6 +1,6 @@
 types = require './types.coffee'
 b64 = require './base64.js'
-EMIT_RATE = 1
+EMIT_RATE = 30
 SIM_RATE = 50
 VISION_MAX = 11
 SPEED = 6 / SIM_RATE # Tiles per Second
