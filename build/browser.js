@@ -1448,6 +1448,7 @@ assets.loadAssets(function() {
   socket.on('update', function(data) {
     var field;
     PLAYER.pos = types.Vector.parse(data.pos).value;
+    PLAYER.velocity = types.Vector.parse(data.velocity).value;
     field = types.VisionField.parse(data.vision).value;
     BOARD.update(field.tiles);
     MOBS = field.mobs;

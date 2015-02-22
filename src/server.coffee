@@ -111,6 +111,7 @@ emit = ->
 
     player.socket.emit 'update', {
       pos: player.player.pos.serialize()
+      vel: player.player.velocity.serialize()
       vision: (buffer = field.serialize())
     }
 
