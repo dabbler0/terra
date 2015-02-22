@@ -17,7 +17,7 @@ PLAYERS = []
 BOARD = new types.Board new types.BoardCoordinate 500, 500
 BOARD.each (x, y, tile) ->
   if Math.random() < Math.sqrt((x - 250) ** 2 + (y - 250) ** 2) / 250
-    tile.obstacle = new types.Obstacle (new types.Texture 'tree-top'), (new types.Texture 'tree-side')
+    tile.obstacle = new types.Obstacle 'tree'
     tile.terrain = new types.Terrain (new types.Texture 'dirt')
   else
     tile.terrain = new types.Terrain (new types.Texture 'grass')
@@ -27,8 +27,54 @@ io.on 'connection', (socket) ->
   PLAYERS.push {player, socket, board: new types.GhostBoard(BOARD.dimensions)}
   MOBS.push player
 
+  player.inventory.on 'change', ->
+    socket.emit 'inventory', player.inventory.serialize()
+
+  player.inventory.add new types.Item 'Axe'
+
   socket.on 'move', (vector) ->
     player.velocity = types.Vector.parse(vector).value
+
+  usageQueue = []; awaitingUsage = false
+  socket.on 'use-on-tile', (data) ->
+    item = types.Item.parse(data.item).value
+    index = data.index
+    tile = BOARD.get types.BoardCoordinate.parse(data.tile).value
+
+    # Queue the usage
+    # Use it
+    usageQueue.push {
+      type: 'tile'
+      item, tile, index
+    }
+
+    unless awaitingUsage
+      consumeUsageQueue()
+
+  socket.on 'drop', (data) ->
+    index = data.index
+    item = types.Item.parse(data.item).value
+
+    if player.inventory.get(index).item_id is item.item_id
+      player.inventory.removeIndex index
+      BOARD.get(player.pos.round()).inventory.add item
+
+  socket.on 'pickup', ->
+    BOARD.get(player.pos.round()).inventory.dump player.inventory
+
+  consumeUsageQueue = ->
+    if usageQueue.length is 0
+      awaitingUsage = false
+    else
+      awaitingUsage = true
+      {type, item, index, tile} = usageQueue.shift()
+
+      # Verify that the player indeed owns such an item
+      if player.inventory.get(index).item_id is item.item_id
+        if item.useOnTile tile
+          player.inventory.removeIndex index
+
+      setTimeout consumeUsageQueue, item.cooldown()
 
   socket.on 'disconnect', ->
     # Remove from players
@@ -64,7 +110,7 @@ emit = ->
     field = new types.VisionField tileVision, mobVision
 
     player.socket.emit 'update', {
-      self: player.player.serialize()
+      pos: player.player.pos.serialize()
       vision: (buffer = field.serialize())
     }
 

@@ -1296,6 +1296,46 @@ module.exports = isArray || function (val) {
 };
 
 },{}],5:[function(require,module,exports){
+var RESOURCES;
+
+exports.RESOURCES = RESOURCES = ['/assets/wizard.png', '/assets/stone.png', '/assets/dirt.png', '/assets/grass.png', '/assets/black.png', '/assets/tree-top.png', '/assets/tree-side.png', '/assets/axe.png', '/assets/wood.png', '/assets/crack1.png', '/assets/crack2.png', '/assets/crack3.png'];
+
+exports.loadAssets = function(cb) {
+  var i, loaded, resource, _i, _len, _results;
+  loaded = 0;
+  _results = [];
+  for (i = _i = 0, _len = RESOURCES.length; _i < _len; i = ++_i) {
+    resource = RESOURCES[i];
+    RESOURCES[i] = new Image();
+    RESOURCES[i].src = resource;
+    _results.push(RESOURCES[i].onload = function() {
+      loaded += 1;
+      if (loaded === RESOURCES.length && (cb != null)) {
+        console.log('Loaded all resources');
+        return cb();
+      }
+    });
+  }
+  return _results;
+};
+
+exports.TEXTURE_IDS = {
+  'wizard': 0,
+  'stone': 1,
+  'dirt': 2,
+  'grass': 3,
+  'black': 4,
+  'tree-top': 5,
+  'tree-side': 6,
+  'axe': 7,
+  'wood': 8,
+  'crack-1': 9,
+  'crack-2': 10,
+  'crack-3': 11
+};
+
+
+},{}],6:[function(require,module,exports){
 // Converts an ArrayBuffer directly to base64, without any intermediate 'convert to string then
 // use window.btoa' step. According to my tests, this appears to be a faster approach:
 // http://jsperf.com/encoding-xhr-image-data/5
@@ -1352,10 +1392,12 @@ exports.encode = function base64ArrayBuffer(arrayBuffer) {
   return base64
 }
 
-},{}],6:[function(require,module,exports){
-var BOARD, FRAME_RATE, MOBS, MOUSE_POS, PLAYER, RANGE, RAW_MOUSE_POS, ROTATION, SIM_RATE, SIZE, SPEED, STARTED, TARGET_FLASHING, VISION_MAX, canvas, ctx, socket, start, types;
+},{}],7:[function(require,module,exports){
+var BOARD, FRAME_RATE, ITEM_DISPLAY_SIZE, MOBS, MOUSEDOWN, MOUSE_POS, PLAYER, RANGE, RAW_MOUSE_POS, ROTATION, SIM_RATE, SIZE, SPEED, STARTED, TARGET_FLASHING, TARGET_FLASH_TIME, USING_ITEM, VISION_MAX, assets, canvas, ctx, getTarget, i, inventoryCanvases, inventoryList, inventoryTable, j, redrawInventory, socket, start, tick, toolUseTick, tr, types, updateMousePos, _fn, _i, _j;
 
 types = require('./types.coffee');
+
+assets = require('./assets.coffee');
 
 VISION_MAX = 11;
 
@@ -1369,13 +1411,19 @@ RANGE = 2;
 
 SPEED = 10 / SIM_RATE;
 
+ITEM_DISPLAY_SIZE = 35;
+
+USING_ITEM = 0;
+
 STARTED = false;
 
 canvas = document.getElementById('viewport');
 
 ctx = canvas.getContext('2d');
 
-PLAYER = null;
+inventoryCanvases = null;
+
+PLAYER = new types.Player();
 
 MOBS = [];
 
@@ -1385,17 +1433,21 @@ BOARD = new types.GhostBoard(new types.BoardCoordinate(500, 500));
 
 TARGET_FLASHING = false;
 
+TARGET_FLASH_TIME = 20;
+
 RAW_MOUSE_POS = new types.Vector(0, 0);
 
 MOUSE_POS = new types.Vector(0, 0);
 
+MOUSEDOWN = false;
+
 socket = null;
 
-types.loadAssets(function() {
+assets.loadAssets(function() {
   socket = io();
-  return socket.on('update', function(data) {
+  socket.on('update', function(data) {
     var field;
-    PLAYER = types.Player.parse(data.self).value;
+    PLAYER.pos = types.Vector.parse(data.pos).value;
     field = types.VisionField.parse(data.vision).value;
     BOARD.update(field.tiles);
     MOBS = field.mobs;
@@ -1404,10 +1456,17 @@ types.loadAssets(function() {
       return start();
     }
   });
+  return socket.on('inventory', function(inventory) {
+    PLAYER.inventory = types.Inventory.parse(inventory).value;
+    if (USING_ITEM >= PLAYER.inventory.length()) {
+      USING_ITEM = PLAYER.inventory.length() - 1;
+    }
+    return redrawInventory();
+  });
 });
 
 start = function() {
-  var checkMove, getTarget, keysdown, tick, updateMousePos;
+  var checkMove, keysdown;
   canvas.addEventListener('mousewheel', function(event) {
     if (event.wheelDelta > 0) {
       ROTATION += 0.1;
@@ -1419,6 +1478,14 @@ start = function() {
   keysdown = {};
   document.body.addEventListener('keydown', function(event) {
     keysdown[event.which] = true;
+    if (event.which === 88) {
+      socket.emit('pickup');
+    } else if (event.which === 90) {
+      socket.emit('drop', {
+        index: USING_ITEM,
+        item: PLAYER.inventory.get(USING_ITEM).serialize()
+      });
+    }
     return checkMove();
   });
   checkMove = function() {
@@ -1442,85 +1509,327 @@ start = function() {
     keysdown[event.which] = false;
     return checkMove();
   });
-  tick = function() {
-    var coord, dir, protrusions, target, terrains, tiles, view, visible, _i, _j, _len, _len1;
-    updateMousePos();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    tiles = BOARD.getTileArea(PLAYER.pos.round(), VISION_MAX);
-    visible = BOARD.shadowcast(PLAYER.pos.round(), (function(tile) {
-      return tile.obstacle == null;
-    }), VISION_MAX);
-    dir = new types.Vector(Math.sin(ROTATION), Math.cos(ROTATION));
-    terrains = tiles.filter(function(x) {
-      return x.obstacle == null;
+  tick();
+  return toolUseTick();
+};
+
+inventoryList = document.getElementById('inventory-list');
+
+inventoryTable = document.createElement('table');
+
+inventoryList.appendChild(inventoryTable);
+
+inventoryCanvases = [];
+
+for (i = _i = 0; _i < 4; i = ++_i) {
+  tr = document.createElement('tr');
+  _fn = function(i, j) {
+    var inventoryCanvas, td;
+    td = document.createElement('td');
+    inventoryCanvas = document.createElement('canvas');
+    inventoryCanvas.width = inventoryCanvas.height = ITEM_DISPLAY_SIZE;
+    inventoryCanvas.style.borderRadius = '2px';
+    inventoryCanvas.className = 'inventory-canvas';
+    inventoryCanvases.push(inventoryCanvas);
+    td.appendChild(inventoryCanvas);
+    td.addEventListener('click', function() {
+      if (inventoryCanvases[USING_ITEM] != null) {
+        inventoryCanvases[USING_ITEM].style.outline = 'none';
+      }
+      USING_ITEM = i * 5 + j;
+      return inventoryCanvas.style.outline = '1px solid #FF0';
     });
-    for (_i = 0, _len = terrains.length; _i < _len; _i++) {
-      view = terrains[_i];
-      coord = view.pos.dump();
-      if (!(coord in visible)) {
-        ctx.globalAlpha = 0.5;
-      }
-      view.render(canvas, ctx, ROTATION, PLAYER.pos);
-      if (!(coord in visible)) {
-        ctx.globalAlpha = 1;
-      }
-    }
-    protrusions = tiles.filter(function(x) {
-      return x.obstacle != null;
-    }).concat(MOBS);
-    protrusions.sort(function(a, b) {
-      if (PLAYER.pos.to(a.pos).scalarProject(dir) > PLAYER.pos.to(b.pos).scalarProject(dir)) {
-        return 1;
-      } else {
-        return -1;
-      }
-    });
-    for (_j = 0, _len1 = protrusions.length; _j < _len1; _j++) {
-      view = protrusions[_j];
-      coord = view.pos.round().dump();
-      if (!(coord in visible)) {
-        ctx.globalAlpha = 0.5;
-      }
-      view.render(canvas, ctx, ROTATION, PLAYER.pos);
-      if (!(coord in visible)) {
-        ctx.globalAlpha = 1;
-      }
-    }
-    ctx.translate(canvas.width / 2, canvas.height / 2);
-    ctx.rotate(ROTATION);
-    target = getTarget();
-    ctx.strokeStyle = TARGET_FLASHING ? '#000' : '#FF0';
-    ctx.strokeRect((target.pos.x - PLAYER.pos.x) * SIZE - SIZE / 2, (target.pos.y - PLAYER.pos.y) * SIZE - SIZE / 2, SIZE, SIZE);
-    ctx.resetTransform();
-    types.translateOKComponent(BOARD, PLAYER.pos, PLAYER.velocity);
-    return setTimeout(tick, 1000 / SIM_RATE);
+    return tr.appendChild(td);
   };
-  getTarget = function() {
-    var best, candidate, candidates, min, _i, _len;
-    candidates = BOARD.getCoordinateArea(PLAYER.pos.round(), RANGE);
-    best = null;
-    min = Infinity;
-    for (_i = 0, _len = candidates.length; _i < _len; _i++) {
-      candidate = candidates[_i];
-      if (candidate.distance(MOUSE_POS) < min && candidate.distance(PLAYER.pos) <= RANGE) {
-        best = candidate;
-        min = candidate.distance(MOUSE_POS);
-      }
+  for (j = _j = 0; _j < 5; j = ++_j) {
+    _fn(i, j);
+  }
+  inventoryTable.appendChild(tr);
+}
+
+$('.inventory-canvas').tooltipster();
+
+redrawInventory = function() {
+  var iCtx, _k, _results;
+  _results = [];
+  for (i = _k = 0; _k < 20; i = ++_k) {
+    iCtx = inventoryCanvases[i].getContext('2d');
+    iCtx.clearRect(0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE);
+    if (PLAYER.inventory.contents[i] != null) {
+      iCtx.drawImage(PLAYER.inventory.contents[i].texture().get(), 0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE);
+      $(inventoryCanvases[i]).tooltipster('content', PLAYER.inventory.contents[i].name());
+    } else {
+      $(inventoryCanvases[i]).tooltipster('content', '');
     }
-    return BOARD.get(best.x, best.y);
-  };
-  canvas.addEventListener('mousemove', function(ev) {
-    return RAW_MOUSE_POS = new types.Vector(ev.offsetX - canvas.width / 2, ev.offsetY - canvas.width / 2);
+    if (i === USING_ITEM) {
+      _results.push(inventoryCanvases[i].style.outline = '1px solid #FF0');
+    } else {
+      _results.push(inventoryCanvases[i].style.outline = 'none');
+    }
+  }
+  return _results;
+};
+
+tick = function() {
+  var coord, dir, mob, protrusions, target, terrains, tiles, view, visible, _k, _l, _len, _len1, _len2, _m;
+  updateMousePos();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  tiles = BOARD.getTileArea(PLAYER.pos.round(), VISION_MAX);
+  visible = BOARD.shadowcast(PLAYER.pos.round(), (function(tile) {
+    return tile.obstacle == null;
+  }), VISION_MAX);
+  dir = new types.Vector(Math.sin(ROTATION), Math.cos(ROTATION));
+  terrains = tiles.filter(function(x) {
+    return x.obstacle == null;
   });
-  updateMousePos = function() {
-    MOUSE_POS = RAW_MOUSE_POS.rotate(-ROTATION).mult(1 / SIZE);
-    return MOUSE_POS.translate(PLAYER.pos);
-  };
-  return tick();
+  for (_k = 0, _len = terrains.length; _k < _len; _k++) {
+    view = terrains[_k];
+    coord = view.pos.dump();
+    if (!(coord in visible)) {
+      ctx.globalAlpha = 0.5;
+    }
+    view.render(canvas, ctx, ROTATION, PLAYER.pos);
+    if (!(coord in visible)) {
+      ctx.globalAlpha = 1;
+    }
+  }
+  protrusions = tiles.filter(function(x) {
+    return x.obstacle != null;
+  }).concat(MOBS);
+  protrusions.sort(function(a, b) {
+    if (PLAYER.pos.to(a.pos).scalarProject(dir) > PLAYER.pos.to(b.pos).scalarProject(dir)) {
+      return 1;
+    } else {
+      return -1;
+    }
+  });
+  for (_l = 0, _len1 = protrusions.length; _l < _len1; _l++) {
+    view = protrusions[_l];
+    coord = view.pos.round().dump();
+    if (!(coord in visible)) {
+      ctx.globalAlpha = 0.5;
+    }
+    view.render(canvas, ctx, ROTATION, PLAYER.pos);
+    if (!(coord in visible)) {
+      ctx.globalAlpha = 1;
+    }
+  }
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate(ROTATION);
+  target = getTarget();
+  ctx.strokeStyle = TARGET_FLASHING ? '#000' : '#FF0';
+  ctx.strokeRect((target.pos.x - PLAYER.pos.x) * SIZE - SIZE / 2, (target.pos.y - PLAYER.pos.y) * SIZE - SIZE / 2, SIZE, SIZE);
+  ctx.resetTransform();
+  for (_m = 0, _len2 = MOBS.length; _m < _len2; _m++) {
+    mob = MOBS[_m];
+    types.translateOKComponent(BOARD, mob.pos, mob.velocity);
+  }
+  types.translateOKComponent(BOARD, PLAYER.pos, PLAYER.velocity);
+  return setTimeout(tick, 1000 / SIM_RATE);
+};
+
+getTarget = function() {
+  var best, candidate, candidates, min, _k, _len;
+  candidates = BOARD.getCoordinateArea(PLAYER.pos.round(), RANGE);
+  best = null;
+  min = Infinity;
+  for (_k = 0, _len = candidates.length; _k < _len; _k++) {
+    candidate = candidates[_k];
+    if (candidate.distance(MOUSE_POS) < min && candidate.distance(PLAYER.pos) <= RANGE) {
+      best = candidate;
+      min = candidate.distance(MOUSE_POS);
+    }
+  }
+  return BOARD.get(best.x, best.y);
+};
+
+canvas.addEventListener('mousemove', function(ev) {
+  return RAW_MOUSE_POS = new types.Vector(ev.offsetX - canvas.width / 2, ev.offsetY - canvas.width / 2);
+});
+
+updateMousePos = function() {
+  MOUSE_POS = RAW_MOUSE_POS.rotate(-ROTATION).mult(1 / SIZE);
+  return MOUSE_POS.translate(PLAYER.pos);
+};
+
+canvas.addEventListener('mousedown', function(ev) {
+  return MOUSEDOWN = true;
+});
+
+canvas.addEventListener('mouseup', function(ev) {
+  return MOUSEDOWN = false;
+});
+
+toolUseTick = function() {
+  var best, item;
+  if (MOUSEDOWN) {
+    best = getTarget();
+    if (best.pos.distance(PLAYER.pos) >= 1) {
+      item = PLAYER.inventory.contents[USING_ITEM];
+      if (item != null) {
+        TARGET_FLASHING = true;
+        setTimeout((function() {
+          return TARGET_FLASHING = false;
+        }), TARGET_FLASH_TIME);
+        socket.emit('use-on-tile', {
+          item: item.serialize(),
+          tile: best.serialize(),
+          index: USING_ITEM
+        });
+        setTimeout(toolUseTick, item.cooldown());
+        return;
+      }
+    }
+  }
+  return setTimeout(toolUseTick, 1000 / FRAME_RATE);
 };
 
 
-},{"./types.coffee":8}],7:[function(require,module,exports){
+},{"./assets.coffee":5,"./types.coffee":10}],8:[function(require,module,exports){
+var BASE_ITEM, BASE_OBSTACLE, ITEM_NAMES, ITEM_TEMPLATES, OBSTACLE_NAMES, OBSTACLE_TEMPLATES, assets, d, item, item_id, obstacle, obstacle_id, types;
+
+assets = require('./assets.coffee');
+
+types = require('./types.coffee');
+
+exports.ITEM_TEMPLATES = ITEM_TEMPLATES = {};
+
+exports.ITEM_NAMES = ITEM_NAMES = {};
+
+exports.OBSTACLE_TEMPLATES = OBSTACLE_TEMPLATES = {};
+
+exports.OBSTACLE_NAMES = OBSTACLE_NAMES = {};
+
+d = function(x) {
+  return Math.ceil(Math.random() * x);
+};
+
+BASE_ITEM = {
+  ancestors: []
+};
+
+item_id = 0;
+
+item = function(name, extend, properties) {
+  var id, itemTemplate, property, val, _results;
+  if (typeof extend === 'string') {
+    extend = ITEM_TEMPLATES[ITEM_NAMES[extend]];
+  } else {
+    properties = extend;
+    extend = BASE_ITEM;
+  }
+  id = item_id++;
+  ITEM_TEMPLATES[id] = itemTemplate = {
+    name: name,
+    ancestors: extend.ancestors.concat([name])
+  };
+  ITEM_NAMES[name] = id;
+  for (property in extend) {
+    val = extend[property];
+    if (property !== 'ancestors') {
+      itemTemplate[property] = val;
+    }
+  }
+  _results = [];
+  for (property in properties) {
+    val = properties[property];
+    _results.push(itemTemplate[property] = val);
+  }
+  return _results;
+};
+
+item('Stone', {
+  texture: assets.TEXTURE_IDS['stone'],
+  useOnTile: function(tile) {
+    if (tile.obstacle == null) {
+      tile.obstacle = new types.Obstacle('stone');
+      return true;
+    }
+    return false;
+  },
+  cooldown: 500
+});
+
+item('Wood', {
+  texture: assets.TEXTURE_IDS['wood'],
+  useOnTile: function(tile) {
+    if (tile.obstacle == null) {
+      tile.obstacle = new types.Obstacle('wood');
+      return true;
+    }
+    return false;
+  },
+  cooldown: 500
+});
+
+item('Axe', {
+  texture: assets.TEXTURE_IDS['axe'],
+  useOnTile: function(tile) {
+    if ((tile.obstacle != null) && tile.obstacle.subclass('wood')) {
+      tile.damageObstacle(1 * d(3));
+    }
+    return false;
+  },
+  cooldown: 500
+});
+
+BASE_OBSTACLE = {
+  ancestors: []
+};
+
+obstacle_id = 0;
+
+obstacle = function(name, extend, properties) {
+  var id, obstacleTemplate, property, val, _results;
+  if (typeof extend === 'string') {
+    extend = OBSTACLE_TEMPLATES[OBSTACLE_NAMES[extend]];
+  } else {
+    properties = extend;
+    extend = BASE_OBSTACLE;
+  }
+  id = obstacle_id++;
+  OBSTACLE_TEMPLATES[id] = obstacleTemplate = {
+    name: name,
+    ancestors: extend.ancestors.concat([name])
+  };
+  OBSTACLE_NAMES[name] = id;
+  for (property in extend) {
+    val = extend[property];
+    if (property !== 'ancestors') {
+      obstacleTemplate[property] = val;
+    }
+  }
+  _results = [];
+  for (property in properties) {
+    val = properties[property];
+    _results.push(obstacleTemplate[property] = val);
+  }
+  return _results;
+};
+
+obstacle('stone', {
+  top: assets.TEXTURE_IDS['stone'],
+  side: assets.TEXTURE_IDS['stone'],
+  health: 10,
+  drops: ['Stone']
+});
+
+obstacle('wood', {
+  top: assets.TEXTURE_IDS['wood'],
+  side: assets.TEXTURE_IDS['wood'],
+  health: 10,
+  drops: ['Wood']
+});
+
+obstacle('tree', 'wood', {
+  top: assets.TEXTURE_IDS['tree-top'],
+  side: assets.TEXTURE_IDS['tree-side'],
+  health: 10,
+  drops: ['Wood']
+});
+
+
+},{"./assets.coffee":5,"./types.coffee":10}],9:[function(require,module,exports){
 (function (Buffer){
 var NativeType, SerialObject, SerialProperty, SerialType, base64, _Array, _Char, _Float, _Int, _Possibly, _String, _Uint8,
   __hasProp = {}.hasOwnProperty,
@@ -1913,48 +2222,22 @@ exports.SerialType = SerialType = function(extend, properties, methods) {
 
 
 }).call(this,require("buffer").Buffer)
-},{"./base64.js":5,"buffer":1}],8:[function(require,module,exports){
-var Board, BoardCoordinate, GhostBoard, ITEMSIZE, Inventory, Item, Mob, Obstacle, ObstacleView, Player, RESOURCES, SIZE, ShadowQueue, TEXTURE_IDS, Terrain, Texture, Tile, TileView, Vector, VisionField, serial,
+},{"./base64.js":6,"buffer":1}],10:[function(require,module,exports){
+var Board, BoardCoordinate, CRACK_1, CRACK_2, CRACK_3, GhostBoard, ITEMSIZE, Inventory, Item, Mob, Obstacle, ObstacleView, Player, SIZE, ShadowQueue, Terrain, Texture, Tile, TileView, Vector, VisionField, assets, items, serial,
+  __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; },
   __modulo = function(a, b) { return (a % b + +b) % b; },
   __hasProp = {}.hasOwnProperty,
   __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
 
 serial = require('./serialization.coffee');
 
-RESOURCES = ['/assets/wizard.png', '/assets/stone.png', '/assets/dirt.png', '/assets/grass.png', '/assets/black.png', '/assets/tree-top.png', '/assets/tree-side.png'];
+items = require('./items.coffee');
+
+assets = require('./assets.coffee');
 
 SIZE = 40;
 
 ITEMSIZE = 15;
-
-exports.loadAssets = function(cb) {
-  var i, loaded, resource, _i, _len, _results;
-  loaded = 0;
-  _results = [];
-  for (i = _i = 0, _len = RESOURCES.length; _i < _len; i = ++_i) {
-    resource = RESOURCES[i];
-    RESOURCES[i] = new Image();
-    RESOURCES[i].src = resource;
-    _results.push(RESOURCES[i].onload = function() {
-      loaded += 1;
-      if (loaded === RESOURCES.length && (cb != null)) {
-        console.log('Loaded all resources');
-        return cb();
-      }
-    });
-  }
-  return _results;
-};
-
-TEXTURE_IDS = {
-  'wizard': 0,
-  'stone': 1,
-  'dirt': 2,
-  'grass': 3,
-  'black': 4,
-  'tree-top': 5,
-  'tree-side': 6
-};
 
 exports.Vector = Vector = serial.SerialType([[serial.Float, 'x'], [serial.Float, 'y']], {
   constructor: function(x, y) {
@@ -2019,13 +2302,19 @@ exports.Texture = Texture = serial.SerialType([[serial.Uint8, 'texture_id']], {
   constructor: function(texture_id) {
     this.texture_id = texture_id;
     if (this.texture_id instanceof String || typeof this.texture_id === 'string') {
-      return this.texture_id = TEXTURE_IDS[this.texture_id];
+      return this.texture_id = assets.TEXTURE_IDS[this.texture_id];
     }
   },
   get: function() {
-    return RESOURCES[this.texture_id];
+    return assets.RESOURCES[this.texture_id];
   }
 });
+
+CRACK_1 = new Texture('crack-1');
+
+CRACK_2 = new Texture('crack-2');
+
+CRACK_3 = new Texture('crack-3');
 
 exports.BoardCoordinate = BoardCoordinate = serial.SerialType(Vector, [[serial.Int, 'x'], [serial.Int, 'y']], {
   constructor: function(x, y) {
@@ -2046,44 +2335,136 @@ exports.Terrain = Terrain = serial.SerialType([[Texture, 'texture']], {
   }
 });
 
-exports.Item = Item = serial.SerialType([[Texture, 'texture'], [serial.String, 'name']], {
-  constructor: function(texture, name) {
-    this.texture = texture;
-    this.name = name;
+exports.Item = Item = serial.SerialType([[serial.Int, 'item_id']], {
+  constructor: function(item_id) {
+    this.item_id = item_id;
+    if (typeof this.item_id === 'string') {
+      return this.item_id = items.ITEM_NAMES[this.item_id];
+    }
+  },
+  texture: function() {
+    return new Texture(items.ITEM_TEMPLATES[this.item_id].texture);
+  },
+  name: function() {
+    return items.ITEM_TEMPLATES[this.item_id].name;
+  },
+  cooldown: function() {
+    return items.ITEM_TEMPLATES[this.item_id].cooldown;
+  },
+  useOnTile: function(tile) {
+    return items.ITEM_TEMPLATES[this.item_id].useOnTile(tile);
   }
 });
 
-exports.Obstacle = Obstacle = serial.SerialType([[Texture, 'topTexture'], [Texture, 'sideTexture'], [serial.Int, 'health'], [Item, 'drops']], {
-  constructor: function(topTexture, sideTexture, health, drops) {
-    this.topTexture = topTexture;
-    this.sideTexture = sideTexture;
-    this.health = health;
-    this.drops = drops;
+exports.Obstacle = Obstacle = serial.SerialType([[serial.Int, 'obstacle_id'], [serial.Int, 'health'], [serial.Int, 'maxHealth'], [Inventory, 'drops']], {
+  constructor: function(obstacle_id) {
+    var el, i, _i, _len, _ref, _results;
+    this.obstacle_id = obstacle_id;
+    if (typeof this.obstacle_id === 'string') {
+      this.obstacle_id = items.OBSTACLE_NAMES[this.obstacle_id];
+    }
+    this.health = this.maxHealth = items.OBSTACLE_TEMPLATES[this.obstacle_id].health;
+    this.drops = new Inventory(items.OBSTACLE_TEMPLATES[this.obstacle_id].drops.length);
+    _ref = items.OBSTACLE_TEMPLATES[this.obstacle_id].drops;
+    _results = [];
+    for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
+      el = _ref[i];
+      _results.push(this.drops.add(new Item(el)));
+    }
+    return _results;
+  },
+  topTexture: function() {
+    return new Texture(items.OBSTACLE_TEMPLATES[this.obstacle_id].top);
+  },
+  sideTexture: function() {
+    return new Texture(items.OBSTACLE_TEMPLATES[this.obstacle_id].side);
+  },
+  subclass: function(name) {
+    return __indexOf.call(items.OBSTACLE_TEMPLATES[this.obstacle_id].ancestors, name) >= 0;
   },
   view: function() {
     return new ObstacleView(this);
   }
 });
 
-exports.ObstacleView = ObstacleView = serial.SerialType([[Texture, 'top'], [Texture, 'side']], {
+exports.ObstacleView = ObstacleView = serial.SerialType([[Texture, 'top'], [Texture, 'side'], [serial.Uint8, 'damaged']], {
   constructor: function(obstacle) {
     if (obstacle != null) {
-      this.top = obstacle.topTexture;
-      return this.side = obstacle.sideTexture;
+      this.top = obstacle.topTexture();
+      this.side = obstacle.sideTexture();
+      return this.damaged = Math.floor(obstacle.health * 4 / obstacle.maxHealth);
     }
   },
   equals: function(other) {
-    return this.top.texture_id === other.top.texture_id && this.side.texture_id === other.side.texture_id;
+    return this.top.texture_id === other.top.texture_id && this.side.texture_id === other.side.texture_id && this.damaged === other.damaged;
   }
 });
 
 exports.Inventory = Inventory = serial.SerialType([[serial.Array(Item), 'contents'], [serial.Int, 'capacity']], {
   constructor: function(capacity) {
     this.capacity = capacity != null ? capacity : 20;
-    return this.contents = [];
+    this.contents = [];
+    return this.handlers = {
+      change: []
+    };
+  },
+  on: function(event, fn) {
+    return this.handlers[event].push(fn);
   },
   length: function() {
     return this.contents.length;
+  },
+  add: function(item) {
+    var fn, _i, _len, _ref;
+    if (this.contents.length < this.capacity) {
+      this.contents.push(item);
+      _ref = this.handlers.change;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        fn = _ref[_i];
+        fn();
+      }
+      return true;
+    } else {
+      return false;
+    }
+  },
+  remove: function(item) {
+    var el, fn, i, _i, _j, _len, _len1, _ref, _ref1;
+    _ref = this.contents;
+    for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
+      el = _ref[i];
+      if (el === item) {
+        this.contents.splice(i, 1);
+        _ref1 = this.handlers.change;
+        for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+          fn = _ref1[_j];
+          fn();
+        }
+        return true;
+      }
+    }
+    return false;
+  },
+  removeIndex: function(index) {
+    var fn, _i, _len, _ref;
+    if (index < this.contents.length) {
+      this.contents.splice(index, 1);
+      _ref = this.handlers.change;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        fn = _ref[_i];
+        fn();
+      }
+      return true;
+    }
+    return false;
+  },
+  dump: function(destination) {
+    while (this.contents.length !== 0) {
+      if (!destination.add(this.contents.splice(0, 1)[0])) {
+        return this.contents.length;
+      }
+    }
+    return 0;
   },
   get: function(i) {
     return this.contents[i];
@@ -2100,6 +2481,20 @@ exports.Tile = Tile = serial.SerialType([[serial.Int, 'id'], [BoardCoordinate, '
   },
   impassable: function() {
     return this.obstacle != null;
+  },
+  destroyObstacle: function() {
+    if (this.obstacle != null) {
+      this.obstacle.drops.dump(this.inventory);
+      return this.obstacle = null;
+    }
+  },
+  damageObstacle: function(damage) {
+    if (this.obstacle != null) {
+      this.obstacle.health -= damage;
+      if (this.obstacle.health < 0) {
+        return this.destroyObstacle();
+      }
+    }
   },
   view: function() {
     return new TileView(this);
@@ -2118,12 +2513,13 @@ exports.TileView = TileView = serial.SerialType([[BoardCoordinate, 'pos'], [Text
         this.obstacle = tile.obstacle.view();
       }
       if (tile.inventory.length() > 0) {
-        return this.item = tile.inventory.get(0).texture;
+        return this.item = tile.inventory.get(0).texture();
       }
     }
   },
   equals: function(other) {
-    return this.pos.equals(other.pos) && this.terrain.texture_id === other.terrain.texture_id && (this.obstacle != null) === (other.obstacle != null) && ((this.obstacle == null) || this.obstacle.equals(other.obstacle));
+    var _ref, _ref1;
+    return this.pos.equals(other.pos) && this.terrain.texture_id === other.terrain.texture_id && (this.obstacle != null) === (other.obstacle != null) && ((this.obstacle == null) || this.obstacle.equals(other.obstacle)) && ((_ref = this.item) != null ? _ref.texture_id : void 0) === ((_ref1 = other.item) != null ? _ref1.texture_id : void 0);
   },
   impassable: function() {
     return this.obstacle != null;
@@ -2138,6 +2534,16 @@ exports.TileView = TileView = serial.SerialType([[BoardCoordinate, 'pos'], [Text
       ctx.translate(0, -SIZE);
       ctx.rotate(cameraRotation);
       ctx.drawImage(this.obstacle.top.get(), -SIZE / 2, -SIZE / 2, SIZE, SIZE);
+      switch (this.obstacle.damaged) {
+        case 2:
+          ctx.drawImage(CRACK_1.get(), -SIZE / 2, -SIZE / 2, SIZE, SIZE);
+          break;
+        case 1:
+          ctx.drawImage(CRACK_2.get(), -SIZE / 2, -SIZE / 2, SIZE, SIZE);
+          break;
+        case 0:
+          ctx.drawImage(CRACK_3.get(), -SIZE / 2, -SIZE / 2, SIZE, SIZE);
+      }
       drawCorner = (function(_this) {
         return function(n) {
           if ((__modulo(cameraRotation + n, 2 * Math.PI)) < Math.PI) {
@@ -2145,6 +2551,16 @@ exports.TileView = TileView = serial.SerialType([[BoardCoordinate, 'pos'], [Text
             ctx.rotate(-cameraRotation);
             ctx.transform(Math.cos(cameraRotation + n + Math.PI / 2), Math.sin(cameraRotation + n + Math.PI / 2), 0, 1, 0, 0);
             ctx.drawImage(_this.obstacle.side.get(), 0, 0, SIZE, SIZE);
+            switch (_this.obstacle.damaged) {
+              case 2:
+                ctx.drawImage(CRACK_1.get(), 0, 0, SIZE, SIZE);
+                break;
+              case 1:
+                ctx.drawImage(CRACK_2.get(), 0, 0, SIZE, SIZE);
+                break;
+              case 0:
+                ctx.drawImage(CRACK_3.get(), 0, 0, SIZE, SIZE);
+            }
             return ctx.restore();
           }
         };
@@ -2480,5 +2896,5 @@ exports.translateOKComponent = function(board, pos, v) {
 };
 
 
-},{"./serialization.coffee":7}]},{},[6])(6)
+},{"./assets.coffee":5,"./items.coffee":8,"./serialization.coffee":9}]},{},[7])(7)
 });

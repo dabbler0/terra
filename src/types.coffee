@@ -1,40 +1,9 @@
 serial = require './serialization.coffee'
-
-RESOURCES = [
-  '/assets/wizard.png'
-  '/assets/stone.png'
-  '/assets/dirt.png'
-  '/assets/grass.png'
-  '/assets/black.png'
-  '/assets/tree-top.png'
-  '/assets/tree-side.png'
-]
+items = require './items.coffee'
+assets = require './assets.coffee'
 
 SIZE = 40
 ITEMSIZE = 15
-
-# loadAssets, which works on client-side only
-exports.loadAssets = (cb) ->
-  loaded = 0
-
-  for resource, i in RESOURCES
-    RESOURCES[i] = new Image()
-    RESOURCES[i].src = resource
-    RESOURCES[i].onload = ->
-      loaded += 1
-      if loaded is RESOURCES.length and cb?
-        console.log 'Loaded all resources'
-        cb()
-
-TEXTURE_IDS = {
-  'wizard': 0
-  'stone': 1
-  'dirt': 2
-  'grass': 3
-  'black': 4
-  'tree-top': 5
-  'tree-side': 6
-}
 
 exports.Vector = Vector = serial.SerialType [
   [serial.Float, 'x']
@@ -94,10 +63,16 @@ exports.Texture = Texture = serial.SerialType [
 ], {
   constructor: (@texture_id) ->
     if @texture_id instanceof String or typeof @texture_id is 'string'
-      @texture_id = TEXTURE_IDS[@texture_id]
+      @texture_id = assets.TEXTURE_IDS[@texture_id]
 
-  get: -> RESOURCES[@texture_id]
+  get: ->
+    assets.RESOURCES[@texture_id]
 }
+
+CRACK_1 = new Texture 'crack-1'
+CRACK_2 = new Texture 'crack-2'
+CRACK_3 = new Texture 'crack-3'
+
 exports.BoardCoordinate = BoardCoordinate = serial.SerialType Vector, [
   [serial.Int, 'x']
   [serial.Int, 'y']
@@ -116,19 +91,39 @@ exports.Terrain = Terrain = serial.SerialType [
 }
 
 exports.Item = Item = serial.SerialType [
-  [Texture, 'texture']
-  [serial.String, 'name']
+  [serial.Int, 'item_id']
 ], {
-  constructor: (@texture, @name) ->
+  constructor: (@item_id) ->
+    if (typeof @item_id is 'string')
+      @item_id = items.ITEM_NAMES[@item_id]
+
+  texture: -> new Texture items.ITEM_TEMPLATES[@item_id].texture
+  name: -> items.ITEM_TEMPLATES[@item_id].name
+  cooldown: -> items.ITEM_TEMPLATES[@item_id].cooldown
+
+  useOnTile: (tile) -> items.ITEM_TEMPLATES[@item_id].useOnTile tile
 }
 
 exports.Obstacle = Obstacle = serial.SerialType [
-  [Texture, 'topTexture']
-  [Texture, 'sideTexture']
+  [serial.Int, 'obstacle_id']
   [serial.Int, 'health']
-  [Item, 'drops']
+  [serial.Int, 'maxHealth']
+  [Inventory, 'drops']
 ], {
-  constructor: (@topTexture, @sideTexture, @health, @drops) ->
+  constructor: (@obstacle_id) ->
+    if (typeof @obstacle_id is 'string')
+      @obstacle_id = items.OBSTACLE_NAMES[@obstacle_id]
+
+    @health = @maxHealth = items.OBSTACLE_TEMPLATES[@obstacle_id].health
+    @drops = new Inventory(items.OBSTACLE_TEMPLATES[@obstacle_id].drops.length)
+    for el, i in items.OBSTACLE_TEMPLATES[@obstacle_id].drops
+      @drops.add new Item el
+
+  topTexture: -> new Texture items.OBSTACLE_TEMPLATES[@obstacle_id].top
+  sideTexture: -> new Texture items.OBSTACLE_TEMPLATES[@obstacle_id].side
+
+  subclass: (name) ->
+    (name in items.OBSTACLE_TEMPLATES[@obstacle_id].ancestors)
 
   view: -> new ObstacleView @
 }
@@ -136,14 +131,17 @@ exports.Obstacle = Obstacle = serial.SerialType [
 exports.ObstacleView = ObstacleView = serial.SerialType [
   [Texture, 'top']
   [Texture, 'side']
+  [serial.Uint8, 'damaged']
 ], {
   constructor: (obstacle) ->
     if obstacle?
-      @top = obstacle.topTexture; @side = obstacle.sideTexture
+      @top = obstacle.topTexture(); @side = obstacle.sideTexture()
+      @damaged = Math.floor(obstacle.health * 4 / obstacle.maxHealth)
 
   equals: (other) ->
     @top.texture_id is other.top.texture_id and
-    @side.texture_id is other.side.texture_id
+    @side.texture_id is other.side.texture_id and
+    @damaged is other.damaged
 }
 
 exports.Inventory = Inventory = serial.SerialType [
@@ -153,7 +151,47 @@ exports.Inventory = Inventory = serial.SerialType [
   constructor: (@capacity = 20) ->
     @contents = []
 
+    @handlers = {
+      change: []
+    }
+
+  on: (event, fn) ->
+    @handlers[event].push fn
+
   length: -> @contents.length
+
+  add: (item) ->
+    if @contents.length < @capacity
+      @contents.push item
+      # Callbacks
+      fn() for fn in @handlers.change
+      return true
+    else
+      return false
+
+  remove: (item) ->
+    for el, i in @contents
+      if el is item
+        @contents.splice i, 1
+        # Callbacks
+        fn() for fn in @handlers.change
+        return true
+    return false
+
+  removeIndex: (index) ->
+    if index < @contents.length
+      @contents.splice index, 1
+      # Callbacks
+      fn() for fn in @handlers.change
+      return true
+    return false
+
+  dump: (destination) ->
+    until @contents.length is 0
+      unless destination.add @contents.splice(0, 1)[0]
+        return @contents.length
+    return 0
+
   get: (i) -> @contents[i]
 }
 
@@ -169,6 +207,17 @@ exports.Tile = Tile = serial.SerialType [
     @inventory = new Inventory()
 
   impassable: -> @obstacle?
+
+  destroyObstacle: ->
+    if @obstacle?
+      @obstacle.drops.dump(@inventory)
+      @obstacle = null
+
+  damageObstacle: (damage) ->
+    if @obstacle?
+      @obstacle.health -= damage
+      if @obstacle.health < 0
+        @destroyObstacle()
 
   view: -> new TileView @
 }
@@ -190,21 +239,20 @@ exports.TileView = TileView = serial.SerialType [
       if tile.obstacle?
         @obstacle = tile.obstacle.view()
       if tile.inventory.length() > 0
-        @item = tile.inventory.get(0).texture
+        @item = tile.inventory.get(0).texture()
 
   equals: (other) ->
     @pos.equals(other.pos) and
     @terrain.texture_id is other.terrain.texture_id and
     @obstacle? is other.obstacle? and
-    ((not @obstacle?) or @obstacle.equals(other.obstacle))
+    ((not @obstacle?) or @obstacle.equals(other.obstacle)) and
+    @item?.texture_id is other.item?.texture_id
 
   impassable: -> @obstacle?
 
   # Render works only in the browser, operates on a canvas object
   render: (canvas, ctx, cameraRotation, pos) ->
     if @obstacle?
-      #obstacleHealth = @obstacle.health / @obstacle.maxHealth
-
       # Translate to the proper position
       ctx.translate canvas.width / 2, canvas.height / 2
       ctx.rotate cameraRotation
@@ -215,6 +263,15 @@ exports.TileView = TileView = serial.SerialType [
 
       # Draw the top square
       ctx.drawImage @obstacle.top.get(), -SIZE / 2, -SIZE / 2, SIZE, SIZE
+
+      # Draw cracks if applicable
+      switch @obstacle.damaged
+        when 2
+          ctx.drawImage CRACK_1.get(), -SIZE/2, -SIZE/2, SIZE, SIZE
+        when 1
+          ctx.drawImage CRACK_2.get(), -SIZE/2, -SIZE/2, SIZE, SIZE
+        when 0
+          ctx.drawImage CRACK_3.get(), -SIZE/2, -SIZE/2, SIZE, SIZE
 
       # Draw each of the four sides, when applicable.
       # Tis entails doing a horizontal scaling and then
@@ -230,6 +287,13 @@ exports.TileView = TileView = serial.SerialType [
           ctx.rotate -cameraRotation
           ctx.transform Math.cos(cameraRotation + n + Math.PI / 2), Math.sin(cameraRotation + n + Math.PI / 2), 0, 1, 0, 0
           ctx.drawImage @obstacle.side.get(), 0, 0, SIZE, SIZE
+          switch @obstacle.damaged
+            when 2
+              ctx.drawImage CRACK_1.get(), 0, 0, SIZE, SIZE
+            when 1
+              ctx.drawImage CRACK_2.get(), 0, 0, SIZE, SIZE
+            when 0
+              ctx.drawImage CRACK_3.get(), 0, 0, SIZE, SIZE
           ctx.restore()
 
       ctx.translate -SIZE / 2, - SIZE / 2
