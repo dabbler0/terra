@@ -1298,7 +1298,7 @@ module.exports = isArray || function (val) {
 },{}],5:[function(require,module,exports){
 var RESOURCES;
 
-exports.RESOURCES = RESOURCES = ['/assets/wizard.png', '/assets/stone.png', '/assets/dirt.png', '/assets/grass.png', '/assets/black.png', '/assets/tree-top.png', '/assets/tree-side.png', '/assets/axe.png', '/assets/wood.png', '/assets/crack1.png', '/assets/crack2.png', '/assets/crack3.png'];
+exports.RESOURCES = RESOURCES = ['/assets/wizard.png', '/assets/stone.png', '/assets/dirt.png', '/assets/grass.png', '/assets/black.png', '/assets/tree-top.png', '/assets/tree-side.png', '/assets/axe.png', '/assets/wood.png', '/assets/crack1.png', '/assets/crack2.png', '/assets/crack3.png', '/assets/pickaxe.png', '/assets/planks.png', '/assets/tile.png', '/assets/door-side.png', '/assets/door-top.png', '/assets/transparent.png', '/assets/rock.png'];
 
 exports.loadAssets = function(cb) {
   var i, loaded, resource, _i, _len, _results;
@@ -1331,7 +1331,14 @@ exports.TEXTURE_IDS = {
   'wood': 8,
   'crack-1': 9,
   'crack-2': 10,
-  'crack-3': 11
+  'crack-3': 11,
+  'pickaxe': 12,
+  'wood-plank': 13,
+  'stone-tile': 14,
+  'door-side': 15,
+  'door-top': 16,
+  'transparent': 17,
+  'rock': 18
 };
 
 
@@ -1393,11 +1400,13 @@ exports.encode = function base64ArrayBuffer(arrayBuffer) {
 }
 
 },{}],7:[function(require,module,exports){
-var BOARD, FRAME_RATE, ITEM_DISPLAY_SIZE, MOBS, MOUSEDOWN, MOUSE_POS, PLAYER, RANGE, RAW_MOUSE_POS, ROTATION, SIM_RATE, SIZE, SPEED, STARTED, TARGET_FLASHING, TARGET_FLASH_TIME, USING_ITEM, VISION_MAX, assets, canvas, ctx, getTarget, i, inventoryCanvases, inventoryList, inventoryTable, j, redrawInventory, socket, start, tick, toolUseTick, tr, types, updateMousePos, _fn, _i, _j;
+var BOARD, FRAME_RATE, ITEM_DISPLAY_SIZE, MOBS, MOUSEDOWN, MOUSE_POS, PLAYER, RANGE, RAW_MOUSE_POS, ROTATION, SIM_RATE, SIZE, SPEED, STARTED, TARGET_FLASHING, TARGET_FLASH_TIME, USING_ITEM, VISION_MAX, assets, canvas, ctx, getRecipes, getTarget, i, inventoryCanvases, inventoryList, inventoryTable, items, j, recipeList, redrawInventory, renderRecipes, socket, start, tick, toolUseTick, tr, types, updateMousePos, _fn, _i, _j;
 
 types = require('./types.coffee');
 
 assets = require('./assets.coffee');
+
+items = require('./items.coffee');
 
 VISION_MAX = 11;
 
@@ -1551,8 +1560,7 @@ for (i = _i = 0; _i < 4; i = ++_i) {
 $('.inventory-canvas').tooltipster();
 
 redrawInventory = function() {
-  var iCtx, _k, _results;
-  _results = [];
+  var iCtx, _k;
   for (i = _k = 0; _k < 20; i = ++_k) {
     iCtx = inventoryCanvases[i].getContext('2d');
     iCtx.clearRect(0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE);
@@ -1563,10 +1571,42 @@ redrawInventory = function() {
       $(inventoryCanvases[i]).tooltipster('content', '');
     }
     if (i === USING_ITEM) {
-      _results.push(inventoryCanvases[i].style.outline = '1px solid #FF0');
+      inventoryCanvases[i].style.outline = '1px solid #FF0';
     } else {
-      _results.push(inventoryCanvases[i].style.outline = 'none');
+      inventoryCanvases[i].style.outline = 'none';
     }
+  }
+  return renderRecipes();
+};
+
+getRecipes = function() {
+  return items.RECIPES.filter(function(recipe) {
+    return recipe.canWork(PLAYER.inventory);
+  });
+};
+
+recipeList = document.getElementById('recipe-list');
+
+renderRecipes = function() {
+  var recipe, recipes, _k, _len, _results;
+  recipeList.innerHTML = '';
+  recipes = getRecipes();
+  _results = [];
+  for (_k = 0, _len = recipes.length; _k < _len; _k++) {
+    recipe = recipes[_k];
+    _results.push((function(recipe) {
+      var icon;
+      icon = document.createElement('canvas');
+      icon.width = icon.height = ITEM_DISPLAY_SIZE;
+      icon.style.backgroundColor = '#FFF';
+      icon.style.borderRadius = '2px';
+      icon.className = 'recipe-canvas';
+      icon.addEventListener('click', function() {
+        return socket.emit('craft', recipe.id);
+      });
+      icon.getContext('2d').drawImage(new types.Texture(items.ITEM_TEMPLATES[recipe.creates[0]].texture).get(), 0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE);
+      return recipeList.appendChild(icon);
+    })(recipe));
   }
   return _results;
 };
@@ -1576,9 +1616,7 @@ tick = function() {
   updateMousePos();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   tiles = BOARD.getTileArea(PLAYER.pos.round(), VISION_MAX);
-  visible = BOARD.shadowcast(PLAYER.pos.round(), (function(tile) {
-    return tile.obstacle == null;
-  }), VISION_MAX);
+  visible = BOARD.shadowcast(PLAYER.pos.round(), types.PLAYER_SEE, VISION_MAX);
   dir = new types.Vector(Math.sin(ROTATION), Math.cos(ROTATION));
   terrains = tiles.filter(function(x) {
     return x.obstacle == null;
@@ -1653,12 +1691,19 @@ updateMousePos = function() {
   return MOUSE_POS.translate(PLAYER.pos);
 };
 
-canvas.addEventListener('mousedown', function(ev) {
-  return MOUSEDOWN = true;
+canvas.addEventListener('mousedown', function(event) {
+  if (event.which === 1) {
+    return MOUSEDOWN = true;
+  } else if (event.which === 3) {
+    console.log(getTarget(), getTarget().pos);
+    return socket.emit('use-tile', getTarget().pos.serialize());
+  }
 });
 
-canvas.addEventListener('mouseup', function(ev) {
-  return MOUSEDOWN = false;
+canvas.addEventListener('mouseup', function(event) {
+  if (event.which === 1) {
+    return MOUSEDOWN = false;
+  }
 });
 
 toolUseTick = function() {
@@ -1686,8 +1731,8 @@ toolUseTick = function() {
 };
 
 
-},{"./assets.coffee":5,"./types.coffee":10}],8:[function(require,module,exports){
-var BASE_ITEM, BASE_OBSTACLE, ITEM_NAMES, ITEM_TEMPLATES, OBSTACLE_NAMES, OBSTACLE_TEMPLATES, assets, d, item, item_id, obstacle, obstacle_id, types;
+},{"./assets.coffee":5,"./items.coffee":8,"./types.coffee":10}],8:[function(require,module,exports){
+var BASE_ITEM, BASE_OBSTACLE, ITEM_NAMES, ITEM_TEMPLATES, OBSTACLE_NAMES, OBSTACLE_TEMPLATES, RECIPES, Recipe, assets, d, item, item_id, obstacle, obstacle_id, recipe, types;
 
 assets = require('./assets.coffee');
 
@@ -1741,7 +1786,7 @@ item = function(name, extend, properties) {
 
 item('Stone', {
   texture: assets.TEXTURE_IDS['stone'],
-  useOnTile: function(tile) {
+  useOnTile: function(player, tile) {
     if (tile.obstacle == null) {
       tile.obstacle = new types.Obstacle('stone');
       return true;
@@ -1751,9 +1796,17 @@ item('Stone', {
   cooldown: 500
 });
 
+item('Rock', {
+  texture: assets.TEXTURE_IDS['rock']
+});
+
+item('Spear', {
+  texture: assets.TEXTURE_IDS['wizard']
+});
+
 item('Wood', {
   texture: assets.TEXTURE_IDS['wood'],
-  useOnTile: function(tile) {
+  useOnTile: function(player, tile) {
     if (tile.obstacle == null) {
       tile.obstacle = new types.Obstacle('wood');
       return true;
@@ -1763,11 +1816,58 @@ item('Wood', {
   cooldown: 500
 });
 
+item('Wood Plank', {
+  texture: assets.TEXTURE_IDS['wood-plank'],
+  useOnTile: function(player, tile) {
+    if (tile.obstacle == null) {
+      tile.terrain = new types.Terrain('wood');
+      return true;
+    }
+    return false;
+  },
+  cooldown: 500
+});
+
+item('Stone Tile', {
+  texture: assets.TEXTURE_IDS['stone-tile'],
+  useOnTile: function(player, tile) {
+    if (tile.obstacle == null) {
+      tile.terrain = new types.Terrain('stone');
+      return true;
+    }
+    return false;
+  },
+  cooldown: 500
+});
+
 item('Axe', {
   texture: assets.TEXTURE_IDS['axe'],
-  useOnTile: function(tile) {
+  useOnTile: function(player, tile) {
     if ((tile.obstacle != null) && tile.obstacle.subclass('wood')) {
       tile.damageObstacle(1 * d(3));
+    }
+    return false;
+  },
+  cooldown: 500
+});
+
+item('Pickaxe', {
+  texture: assets.TEXTURE_IDS['pickaxe'],
+  useOnTile: function(player, tile) {
+    if ((tile.obstacle != null) && tile.obstacle.subclass('stone')) {
+      tile.damageObstacle(1 * d(3));
+    }
+    return false;
+  },
+  cooldown: 1000
+});
+
+item('Door', {
+  texture: assets.TEXTURE_IDS['door-side'],
+  useOnTile: function(player, tile) {
+    if (tile.obstacle == null) {
+      tile.obstacle = new types.Obstacle('door-closed');
+      return true;
     }
     return false;
   },
@@ -1796,7 +1896,7 @@ obstacle = function(name, extend, properties) {
   OBSTACLE_NAMES[name] = id;
   for (property in extend) {
     val = extend[property];
-    if (property !== 'ancestors') {
+    if (property !== 'ancestors' && property !== 'name') {
       obstacleTemplate[property] = val;
     }
   }
@@ -1828,6 +1928,134 @@ obstacle('tree', 'wood', {
   health: 10,
   drops: ['Wood']
 });
+
+obstacle('door-closed', 'wood', {
+  top: assets.TEXTURE_IDS['door-top'],
+  side: assets.TEXTURE_IDS['door-side'],
+  health: 10,
+  use: function(player, tile) {
+    tile.obstacle = new types.Obstacle('door-open');
+    return tile.obstacle.health = this.health;
+  }
+});
+
+obstacle('door-open', 'wood', {
+  top: assets.TEXTURE_IDS['door-top'],
+  side: assets.TEXTURE_IDS['transparent'],
+  translucent: true,
+  passable: true,
+  use: function(player, tile) {
+    tile.obstacle = new types.Obstacle('door-closed');
+    return tile.obstacle.health = this.health;
+  }
+});
+
+exports.RECIPES = RECIPES = [];
+
+Recipe = (function() {
+  function Recipe(id, needs, creates) {
+    this.id = id;
+    this.needs = needs;
+    this.creates = creates;
+  }
+
+  Recipe.prototype.canWork = function(inventory) {
+    var counts, key, val, _ref;
+    counts = inventory.counts();
+    _ref = this.needs;
+    for (key in _ref) {
+      val = _ref[key];
+      if (!(key in counts && counts[key] >= val)) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+  Recipe.prototype.attempt = function(inventory) {
+    var el, i, key, val, _i, _j, _len, _ref, _ref1, _results;
+    if (this.canWork(inventory)) {
+      _ref = this.needs;
+      for (key in _ref) {
+        val = _ref[key];
+        for (i = _i = 0; 0 <= val ? _i < val : _i > val; i = 0 <= val ? ++_i : --_i) {
+          inventory.removeType(Number(key));
+        }
+      }
+      _ref1 = this.creates;
+      _results = [];
+      for (i = _j = 0, _len = _ref1.length; _j < _len; i = ++_j) {
+        el = _ref1[i];
+        _results.push(inventory.add(new types.Item(el)));
+      }
+      return _results;
+    } else {
+      return false;
+    }
+  };
+
+  return Recipe;
+
+})();
+
+recipe = function(needs, creates) {
+  var i, key, result, val, _i;
+  result = {
+    needs: {},
+    creates: []
+  };
+  for (key in needs) {
+    val = needs[key];
+    if (typeof key === 'string') {
+      key = ITEM_NAMES[key];
+    }
+    result.needs[key] = val;
+  }
+  for (key in creates) {
+    val = creates[key];
+    if (typeof key === 'string') {
+      key = ITEM_NAMES[key];
+    }
+    for (i = _i = 0; 0 <= val ? _i < val : _i > val; i = 0 <= val ? ++_i : --_i) {
+      result.creates.push(key);
+    }
+  }
+  return RECIPES.push(new Recipe(RECIPES.length, result.needs, result.creates));
+};
+
+recipe({
+  'Wood': 1
+}, {
+  'Wood Plank': 3
+});
+
+recipe({
+  'Stone': 1
+}, {
+  'Stone Tile': 2
+});
+
+recipe({
+  'Stone': 1
+}, {
+  'Rock': 3
+});
+
+recipe({
+  'Rock': 1,
+  'Wood': 4
+}, {
+  'Spear': 1
+});
+
+recipe({
+  'Wood': 2,
+  'Rock': 1
+}, {
+  'Door': 1
+});
+
+console.log(RECIPES);
 
 
 },{"./assets.coffee":5,"./types.coffee":10}],9:[function(require,module,exports){
@@ -2151,14 +2379,14 @@ exports.SerialType = SerialType = function(extend, properties, methods) {
     _ref1 = extend.prototype;
     for (key in _ref1) {
       val = _ref1[key];
-      if (!(key in methods)) {
+      if (!(key in methods) && !(key === 'serialize' || key === 'serialSize')) {
         Type.prototype[key] = val;
       }
     }
   }
   for (key in methods) {
     val = methods[key];
-    if (key !== 'constructor') {
+    if (key !== 'constructor' && !(key === 'serialize' || key === 'serialSize')) {
       Type.prototype[key] = val;
     }
   }
@@ -2239,6 +2467,10 @@ assets = require('./assets.coffee');
 SIZE = 40;
 
 ITEMSIZE = 15;
+
+exports.PLAYER_SEE = function(tile) {
+  return tile.translucent();
+};
 
 exports.Vector = Vector = serial.SerialType([[serial.Float, 'x'], [serial.Float, 'y']], {
   constructor: function(x, y) {
@@ -2333,7 +2565,14 @@ exports.BoardCoordinate = BoardCoordinate = serial.SerialType(Vector, [[serial.I
 exports.Terrain = Terrain = serial.SerialType([[Texture, 'texture']], {
   constructor: function(texture) {
     this.texture = texture;
-  }
+    if (typeof this.texture === 'string') {
+      this.texture = assets.TEXTURE_IDS[this.texture];
+    }
+    if (typeof this.texture === 'number') {
+      return this.texture = new Texture(this.texture);
+    }
+  },
+  use: function() {}
 });
 
 exports.Item = Item = serial.SerialType([[serial.Int, 'item_id']], {
@@ -2352,8 +2591,8 @@ exports.Item = Item = serial.SerialType([[serial.Int, 'item_id']], {
   cooldown: function() {
     return items.ITEM_TEMPLATES[this.item_id].cooldown;
   },
-  useOnTile: function(tile) {
-    return items.ITEM_TEMPLATES[this.item_id].useOnTile(tile);
+  useOnTile: function(player, tile) {
+    return items.ITEM_TEMPLATES[this.item_id].useOnTile(player, tile);
   }
 });
 
@@ -2383,21 +2622,46 @@ exports.Obstacle = Obstacle = serial.SerialType([[serial.Int, 'obstacle_id'], [s
   subclass: function(name) {
     return __indexOf.call(items.OBSTACLE_TEMPLATES[this.obstacle_id].ancestors, name) >= 0;
   },
+  translucent: function() {
+    var _ref;
+    return (_ref = items.OBSTACLE_TEMPLATES[this.obstacle_id].translucent) != null ? _ref : false;
+  },
+  passable: function() {
+    var _ref;
+    return (_ref = items.OBSTACLE_TEMPLATES[this.obstacle_id].passable) != null ? _ref : false;
+  },
   view: function() {
     return new ObstacleView(this);
+  },
+  use: function(player, tile) {
+    var _ref;
+    return (_ref = items.OBSTACLE_TEMPLATES[this.obstacle_id].use) != null ? _ref.call(this, player, tile) : void 0;
   }
 });
 
-exports.ObstacleView = ObstacleView = serial.SerialType([[Texture, 'top'], [Texture, 'side'], [serial.Uint8, 'damaged']], {
+exports.ObstacleView = ObstacleView = serial.SerialType([[serial.Int, 'obstacle_id'], [serial.Uint8, 'damaged']], {
   constructor: function(obstacle) {
     if (obstacle != null) {
-      this.top = obstacle.topTexture();
-      this.side = obstacle.sideTexture();
+      this.obstacle_id = obstacle.obstacle_id;
       return this.damaged = Math.floor(obstacle.health * 4 / obstacle.maxHealth);
     }
   },
+  top: function() {
+    return new Texture(items.OBSTACLE_TEMPLATES[this.obstacle_id].top);
+  },
+  side: function() {
+    return new Texture(items.OBSTACLE_TEMPLATES[this.obstacle_id].side);
+  },
+  translucent: function() {
+    var _ref;
+    return (_ref = items.OBSTACLE_TEMPLATES[this.obstacle_id].translucent) != null ? _ref : false;
+  },
+  passable: function() {
+    var _ref;
+    return (_ref = items.OBSTACLE_TEMPLATES[this.obstacle_id].passable) != null ? _ref : false;
+  },
   equals: function(other) {
-    return this.top.texture_id === other.top.texture_id && this.side.texture_id === other.side.texture_id && this.damaged === other.damaged;
+    return this.obstacle_id === other.obstacle_id && this.damaged === other.damaged;
   }
 });
 
@@ -2411,6 +2675,19 @@ exports.Inventory = Inventory = serial.SerialType([[serial.Array(Item), 'content
   },
   on: function(event, fn) {
     return this.handlers[event].push(fn);
+  },
+  counts: function() {
+    var counts, el, i, _i, _len, _name, _ref;
+    counts = {};
+    _ref = this.contents;
+    for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
+      el = _ref[i];
+      if (counts[_name = el.item_id] == null) {
+        counts[_name] = 0;
+      }
+      counts[el.item_id]++;
+    }
+    return counts;
   },
   length: function() {
     return this.contents.length;
@@ -2435,6 +2712,23 @@ exports.Inventory = Inventory = serial.SerialType([[serial.Array(Item), 'content
     for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
       el = _ref[i];
       if (el === item) {
+        this.contents.splice(i, 1);
+        _ref1 = this.handlers.change;
+        for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+          fn = _ref1[_j];
+          fn();
+        }
+        return true;
+      }
+    }
+    return false;
+  },
+  removeType: function(item_id) {
+    var el, fn, i, _i, _j, _len, _len1, _ref, _ref1;
+    _ref = this.contents;
+    for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
+      el = _ref[i];
+      if (el.item_id === item_id) {
         this.contents.splice(i, 1);
         _ref1 = this.handlers.change;
         for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
@@ -2481,7 +2775,18 @@ exports.Tile = Tile = serial.SerialType([[serial.Int, 'id'], [BoardCoordinate, '
     return this.inventory = new Inventory();
   },
   impassable: function() {
-    return this.obstacle != null;
+    if (this.obstacle != null) {
+      return !this.obstacle.passable();
+    } else {
+      return false;
+    }
+  },
+  translucent: function() {
+    if (this.obstacle != null) {
+      return this.obstacle.translucent();
+    } else {
+      return true;
+    }
   },
   destroyObstacle: function() {
     if (this.obstacle != null) {
@@ -2499,6 +2804,13 @@ exports.Tile = Tile = serial.SerialType([[serial.Int, 'id'], [BoardCoordinate, '
   },
   view: function() {
     return new TileView(this);
+  },
+  use: function(player) {
+    if (this.obstacle != null) {
+      return this.obstacle.use(player, this);
+    } else {
+      return this.terrain.use(player, this);
+    }
   }
 });
 
@@ -2523,7 +2835,18 @@ exports.TileView = TileView = serial.SerialType([[BoardCoordinate, 'pos'], [Text
     return this.pos.equals(other.pos) && this.terrain.texture_id === other.terrain.texture_id && (this.obstacle != null) === (other.obstacle != null) && ((this.obstacle == null) || this.obstacle.equals(other.obstacle)) && ((_ref = this.item) != null ? _ref.texture_id : void 0) === ((_ref1 = other.item) != null ? _ref1.texture_id : void 0);
   },
   impassable: function() {
-    return this.obstacle != null;
+    if (this.obstacle != null) {
+      return !this.obstacle.passable();
+    } else {
+      return false;
+    }
+  },
+  translucent: function() {
+    if (this.obstacle != null) {
+      return this.obstacle.translucent();
+    } else {
+      return true;
+    }
   },
   render: function(canvas, ctx, cameraRotation, pos) {
     var drawCorner, terrain;
@@ -2534,7 +2857,7 @@ exports.TileView = TileView = serial.SerialType([[BoardCoordinate, 'pos'], [Text
       ctx.rotate(-cameraRotation);
       ctx.translate(0, -SIZE);
       ctx.rotate(cameraRotation);
-      ctx.drawImage(this.obstacle.top.get(), -SIZE / 2, -SIZE / 2, SIZE, SIZE);
+      ctx.drawImage(this.obstacle.top().get(), -SIZE / 2, -SIZE / 2, SIZE, SIZE);
       switch (this.obstacle.damaged) {
         case 2:
           ctx.drawImage(CRACK_1.get(), -SIZE / 2, -SIZE / 2, SIZE, SIZE);
@@ -2551,7 +2874,7 @@ exports.TileView = TileView = serial.SerialType([[BoardCoordinate, 'pos'], [Text
             ctx.save();
             ctx.rotate(-cameraRotation);
             ctx.transform(Math.cos(cameraRotation + n + Math.PI / 2), Math.sin(cameraRotation + n + Math.PI / 2), 0, 1, 0, 0);
-            ctx.drawImage(_this.obstacle.side.get(), 0, 0, SIZE, SIZE);
+            ctx.drawImage(_this.obstacle.side().get(), 0, 0, SIZE, SIZE);
             switch (_this.obstacle.damaged) {
               case 2:
                 ctx.drawImage(CRACK_1.get(), 0, 0, SIZE, SIZE);

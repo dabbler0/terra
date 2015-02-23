@@ -1,4 +1,6 @@
 types = require './types.coffee'
+items = require './items.coffee'
+
 b64 = require './base64.js'
 EMIT_RATE = 30
 SIM_RATE = 50
@@ -16,9 +18,14 @@ MOBS = []
 PLAYERS = []
 BOARD = new types.Board new types.BoardCoordinate 500, 500
 BOARD.each (x, y, tile) ->
-  if Math.random() < Math.sqrt((x - 250) ** 2 + (y - 250) ** 2) / 250
+  if Math.sqrt((x - 250) ** 2 + (y - 0) ** 2) < 200
+    tile.obstacle = new types.Obstacle 'stone'
+    tile.terrain = new types.Terrain (new types.Texture 'dirt')
+
+  else if Math.random() < Math.sqrt((x - 250) ** 2 + (y - 250) ** 2) / 250
     tile.obstacle = new types.Obstacle 'tree'
     tile.terrain = new types.Terrain (new types.Texture 'dirt')
+
   else
     tile.terrain = new types.Terrain (new types.Texture 'grass')
 
@@ -31,6 +38,8 @@ io.on 'connection', (socket) ->
     socket.emit 'inventory', player.inventory.serialize()
 
   player.inventory.add new types.Item 'Axe'
+  player.inventory.add new types.Item 'Door'
+  player.inventory.add new types.Item 'Pickaxe'
 
   socket.on 'move', (vector) ->
     player.velocity = types.Vector.parse(vector).value
@@ -51,6 +60,11 @@ io.on 'connection', (socket) ->
     unless awaitingUsage
       consumeUsageQueue()
 
+  socket.on 'use-tile', (coord) ->
+    coord = types.BoardCoordinate.parse(coord).value
+    console.log coord, BOARD.get(coord)
+    BOARD.get(coord).use(player)
+
   socket.on 'drop', (data) ->
     index = data.index
     item = types.Item.parse(data.item).value
@@ -62,6 +76,9 @@ io.on 'connection', (socket) ->
   socket.on 'pickup', ->
     BOARD.get(player.pos.round()).inventory.dump player.inventory
 
+  socket.on 'craft', (id) ->
+    items.RECIPES[id].attempt player.inventory
+
   consumeUsageQueue = ->
     if usageQueue.length is 0
       awaitingUsage = false
@@ -71,7 +88,7 @@ io.on 'connection', (socket) ->
 
       # Verify that the player indeed owns such an item
       if player.inventory.get(index).item_id is item.item_id
-        if item.useOnTile tile
+        if item.useOnTile player, tile
           player.inventory.removeIndex index
 
       setTimeout consumeUsageQueue, item.cooldown()
@@ -94,7 +111,7 @@ load = 0
 
 emit = ->
   for player, i in PLAYERS
-    visible = BOARD.shadowcast(player.player.pos.round(), ((tile) -> not tile.obstacle?), VISION_MAX)
+    visible = BOARD.shadowcast(player.player.pos.round(), types.PLAYER_SEE, VISION_MAX)
     # Tile vision -- only the updates
     tileVision = BOARD.getTileArea(player.player.pos.round(), VISION_MAX)
       .filter((x) -> (x.pos.dump() of visible))

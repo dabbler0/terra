@@ -163,11 +163,11 @@ exports.SerialType = SerialType = (extend, properties, methods) ->
     serialize: (buffer, offset = 0) -> Type.serialize(@, buffer, offset).value.buffer
 
   unless extend is SerialObject
-    for key, val of extend.prototype when not (key of methods)
+    for key, val of extend.prototype when not (key of methods) and not (key in ['serialize', 'serialSize'])
       Type::[key] = val
 
   # Filter through other methods
-  for key, val of methods when key isnt 'constructor'
+  for key, val of methods when key isnt 'constructor' and not (key in ['serialize', 'serialSize'])
     Type::[key] = val
 
   Type.size = (object) ->

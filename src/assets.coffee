@@ -11,6 +11,13 @@ exports.RESOURCES = RESOURCES = [
   '/assets/crack1.png'
   '/assets/crack2.png'
   '/assets/crack3.png'
+  '/assets/pickaxe.png'
+  '/assets/planks.png'
+  '/assets/tile.png'
+  '/assets/door-side.png'
+  '/assets/door-top.png'
+  '/assets/transparent.png'
+  '/assets/rock.png'
 ]
 
 # loadAssets, which works on client-side only
@@ -39,4 +46,11 @@ exports.TEXTURE_IDS = {
   'crack-1': 9
   'crack-2': 10
   'crack-3': 11
+  'pickaxe': 12
+  'wood-plank': 13
+  'stone-tile': 14
+  'door-side': 15
+  'door-top': 16
+  'transparent': 17
+  'rock': 18
 }

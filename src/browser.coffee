@@ -1,5 +1,6 @@
 types = require './types.coffee'
 assets = require './assets.coffee'
+items = require './items.coffee'
 
 VISION_MAX = 11
 FRAME_RATE = 30
@@ -138,12 +139,35 @@ redrawInventory = ->
     else
       inventoryCanvases[i].style.outline = 'none'
 
+  renderRecipes()
+
+# Recipe redraw
+getRecipes = -> items.RECIPES.filter (recipe) -> recipe.canWork PLAYER.inventory
+
+recipeList = document.getElementById 'recipe-list'
+
+renderRecipes = ->
+  recipeList.innerHTML = ''
+  recipes = getRecipes()
+  for recipe in recipes then do (recipe) ->
+    icon = document.createElement 'canvas'
+    icon.width = icon.height = ITEM_DISPLAY_SIZE
+    icon.style.backgroundColor = '#FFF'
+    icon.style.borderRadius = '2px'
+    icon.className = 'recipe-canvas'
+
+    icon.addEventListener 'click', ->
+      socket.emit 'craft', recipe.id
+
+    icon.getContext('2d').drawImage new types.Texture(items.ITEM_TEMPLATES[recipe.creates[0]].texture).get(), 0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE
+    recipeList.appendChild icon
+
 tick = ->
   updateMousePos()
 
   ctx.clearRect 0, 0, canvas.width, canvas.height
   tiles = BOARD.getTileArea PLAYER.pos.round(), VISION_MAX
-  visible = BOARD.shadowcast PLAYER.pos.round(), ((tile) -> not tile.obstacle?), VISION_MAX
+  visible = BOARD.shadowcast PLAYER.pos.round(), types.PLAYER_SEE, VISION_MAX
 
   dir = new types.Vector Math.sin(ROTATION), Math.cos(ROTATION)
 
@@ -200,10 +224,16 @@ updateMousePos = ->
   MOUSE_POS.translate PLAYER.pos
 
 # Mousedown tracking
-canvas.addEventListener 'mousedown', (ev) ->
-  MOUSEDOWN = true
-canvas.addEventListener 'mouseup', (ev) ->
-  MOUSEDOWN = false
+canvas.addEventListener 'mousedown', (event) ->
+  if event.which is 1
+    MOUSEDOWN = true
+  else if event.which is 3
+    console.log getTarget(), getTarget().pos
+    socket.emit 'use-tile', getTarget().pos.serialize() # TODO will require server-side distance check
+
+canvas.addEventListener 'mouseup', (event) ->
+  if event.which is 1
+    MOUSEDOWN = false
 
 toolUseTick = ->
   if MOUSEDOWN

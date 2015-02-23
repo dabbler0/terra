@@ -5,6 +5,8 @@ assets = require './assets.coffee'
 SIZE = 40
 ITEMSIZE = 15
 
+exports.PLAYER_SEE = (tile) -> tile.translucent()
+
 exports.Vector = Vector = serial.SerialType [
   [serial.Float, 'x']
   [serial.Float, 'y']
@@ -88,6 +90,12 @@ exports.Terrain = Terrain = serial.SerialType [
   [Texture, 'texture']
 ], {
   constructor: (@texture) ->
+    if (typeof @texture is 'string')
+      @texture = assets.TEXTURE_IDS[@texture]
+    if (typeof @texture is 'number')
+      @texture = new Texture @texture
+
+  use: -> # TODO stub
 }
 
 exports.Item = Item = serial.SerialType [
@@ -101,7 +109,7 @@ exports.Item = Item = serial.SerialType [
   name: -> items.ITEM_TEMPLATES[@item_id].name
   cooldown: -> items.ITEM_TEMPLATES[@item_id].cooldown
 
-  useOnTile: (tile) -> items.ITEM_TEMPLATES[@item_id].useOnTile tile
+  useOnTile: (player, tile) -> items.ITEM_TEMPLATES[@item_id].useOnTile player, tile
 }
 
 exports.Obstacle = Obstacle = serial.SerialType [
@@ -125,22 +133,31 @@ exports.Obstacle = Obstacle = serial.SerialType [
   subclass: (name) ->
     (name in items.OBSTACLE_TEMPLATES[@obstacle_id].ancestors)
 
+  translucent: -> items.OBSTACLE_TEMPLATES[@obstacle_id].translucent ? false
+  passable: -> items.OBSTACLE_TEMPLATES[@obstacle_id].passable ? false
+
   view: -> new ObstacleView @
+
+  use: (player, tile) -> items.OBSTACLE_TEMPLATES[@obstacle_id].use?.call @, player, tile
 }
 
 exports.ObstacleView = ObstacleView = serial.SerialType [
-  [Texture, 'top']
-  [Texture, 'side']
+  [serial.Int, 'obstacle_id']
   [serial.Uint8, 'damaged']
 ], {
   constructor: (obstacle) ->
     if obstacle?
-      @top = obstacle.topTexture(); @side = obstacle.sideTexture()
+      @obstacle_id = obstacle.obstacle_id
       @damaged = Math.floor(obstacle.health * 4 / obstacle.maxHealth)
 
+  top: -> new Texture items.OBSTACLE_TEMPLATES[@obstacle_id].top
+  side: -> new Texture items.OBSTACLE_TEMPLATES[@obstacle_id].side
+
+  translucent: -> items.OBSTACLE_TEMPLATES[@obstacle_id].translucent ? false
+  passable: -> items.OBSTACLE_TEMPLATES[@obstacle_id].passable ? false
+
   equals: (other) ->
-    @top.texture_id is other.top.texture_id and
-    @side.texture_id is other.side.texture_id and
+    @obstacle_id is other.obstacle_id and
     @damaged is other.damaged
 }
 
@@ -158,6 +175,13 @@ exports.Inventory = Inventory = serial.SerialType [
   on: (event, fn) ->
     @handlers[event].push fn
 
+  counts: ->
+    counts = {}
+    for el, i in @contents
+      counts[el.item_id] ?= 0
+      counts[el.item_id]++
+    return counts
+
   length: -> @contents.length
 
   add: (item) ->
@@ -172,6 +196,15 @@ exports.Inventory = Inventory = serial.SerialType [
   remove: (item) ->
     for el, i in @contents
       if el is item
+        @contents.splice i, 1
+        # Callbacks
+        fn() for fn in @handlers.change
+        return true
+    return false
+
+  removeType: (item_id) ->
+    for el, i in @contents
+      if el.item_id is item_id
         @contents.splice i, 1
         # Callbacks
         fn() for fn in @handlers.change
@@ -206,7 +239,9 @@ exports.Tile = Tile = serial.SerialType [
     @id = Tile._id++
     @inventory = new Inventory()
 
-  impassable: -> @obstacle?
+  impassable: -> if @obstacle? then (not @obstacle.passable()) else false
+
+  translucent: -> if @obstacle? then @obstacle.translucent() else true
 
   destroyObstacle: ->
     if @obstacle?
@@ -220,6 +255,12 @@ exports.Tile = Tile = serial.SerialType [
         @destroyObstacle()
 
   view: -> new TileView @
+
+  use: (player) ->
+    if @obstacle?
+      @obstacle.use player, @
+    else
+      @terrain.use player, @
 }
 
 Tile._id = 0
@@ -248,7 +289,9 @@ exports.TileView = TileView = serial.SerialType [
     ((not @obstacle?) or @obstacle.equals(other.obstacle)) and
     @item?.texture_id is other.item?.texture_id
 
-  impassable: -> @obstacle?
+  impassable: -> if @obstacle? then (not @obstacle.passable()) else false
+
+  translucent: -> if @obstacle? then @obstacle.translucent() else true
 
   # Render works only in the browser, operates on a canvas object
   render: (canvas, ctx, cameraRotation, pos) ->
@@ -257,12 +300,16 @@ exports.TileView = TileView = serial.SerialType [
       ctx.translate canvas.width / 2, canvas.height / 2
       ctx.rotate cameraRotation
       ctx.translate SIZE * (@pos.x - pos.x), SIZE * (@pos.y - pos.y)
+
+      # Draw the "bottom" square, usually invisible, possibly. TODO decide.
+      #ctx.drawImage @obstacle.top().get(), -SIZE / 2, -SIZE / 2, SIZE, SIZE
+
       ctx.rotate -cameraRotation
       ctx.translate 0, -SIZE
       ctx.rotate cameraRotation
 
       # Draw the top square
-      ctx.drawImage @obstacle.top.get(), -SIZE / 2, -SIZE / 2, SIZE, SIZE
+      ctx.drawImage @obstacle.top().get(), -SIZE / 2, -SIZE / 2, SIZE, SIZE
 
       # Draw cracks if applicable
       switch @obstacle.damaged
@@ -286,7 +333,7 @@ exports.TileView = TileView = serial.SerialType [
           ctx.save()
           ctx.rotate -cameraRotation
           ctx.transform Math.cos(cameraRotation + n + Math.PI / 2), Math.sin(cameraRotation + n + Math.PI / 2), 0, 1, 0, 0
-          ctx.drawImage @obstacle.side.get(), 0, 0, SIZE, SIZE
+          ctx.drawImage @obstacle.side().get(), 0, 0, SIZE, SIZE
           switch @obstacle.damaged
             when 2
               ctx.drawImage CRACK_1.get(), 0, 0, SIZE, SIZE
