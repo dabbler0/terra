@@ -25,6 +25,28 @@ Player commands look like:
   1. A velocity change command, involving a keydown or keyup; sends desired velocity vector, which is checked for magnitude.
   2. A use command, involving a true point, a target square, and a tool.
 
+BIOMES
+======
+
+CITY: High chance of building generation, mostly shops. Home of the Humans.
+
+CAVERNS: Mostly rock, with roguelike rooms embedded inside. Home of the Dwarves and Gnomes.
+
+FOREST: High chance of tree generation, with some rivers. Home of the Elves.
+
+HILLS: Like plains, with Dirt hills as obstacles every now and then. Home of the Halflings.
+
+SWAMP: High chance of water, mud, and tree generation. Home of the Orcs.
+
+
+The Map:
+
+        CAVERNS
+
+FOREST   CITY   HILLS
+
+        SWAMP
+
 ATTRIBUTES
 ==========
 
@@ -46,46 +68,111 @@ RACES
 We copy the D&D races.
 
 **HUMAN**
+  The humans are the merchants, traders, and diplomats of the world. The humans' ascent to power marked the end of the long wars between the Elves, Dwarves, Halflings, and Gnomes and the start of the Grand Treaty. Charismatic and fiercely moral, they tend to steal the spotlight in most stories.
+
   - CHA +3
   - All skills +10%
+  - All Gloria generation +10%
   - Friendly to all players except Half-Orcs (neutral).
+  - Starts in the City
+
+  - Starting equipment:
+    - Leather armor
+    - Leather leggings
+    - Copper pickaxe
+    - Copper axe
+    - Copper shortsword
 
 **ELF**
+  The elves are an ancient race that has shut itself off from most other civilisation. Elves are studious but not inventive; they spend their time trying to search for the One Way and understanding the subtle harmonies of nature. Because of this, they are excellent magicians but unskilled crafters. They have moral qualms about destroying trees or natural mountain rock. The Elves are traditionally unfriendly with the Dwarves, Orcs, and Gnomes, but have partaken in the Grand Treaty on the condition that their forest be left untouched.
+
   - INT +5, CHA +5, POW +5
   - STR -3
   - All magic +30%
   - Bows +25%
   - Axes, saws -10%
-  - Racial power: can make trees grow on grass extremely quickly
-  - Best suited to be a Mage
+  - Starts in the Forest
+  - Racial power: can extract Tree Seeds from trees, which can be planted to make more trees
+  - Racial power: can walk and see through trees
+  - Best suited to be a Mage or Archer
+
+  - Starting equipment:
+    - Leather armor
+    - 10 Tree Seeds
+    - Elven Bow
+    - 30 Elven Arrows
 
 **DWARF**
+  The dwarves are a hearty and industrious race that values hard work over anything. The dwarves have mined out most of the Northern mountains and build grand cities beneath the earth. Dwarves are happiest in action and have little patience for study. The dwarves dislike interference with their work, and so are traditionally unfriendly with the mischevious Gnomes and hostile Orcs. They happily agreed to the Grand Treaty on the condition that the Gnomes be forced into the City.
+
   - STR +5, CON +5
   - INT -3, POW -3
   - All mining +50%
+  - Starts in the Caverns
   - Best suited to be a Miner or Melee Fighter
 
+  - Starting Equipment:
+    - Iron chain mail
+    - Iron leggings
+    - Dwarvish mattock (pickaxe with extra pickaxe damage)
+    - Copper axe
+    - Battle hammer (slow, high-damage weapon)
+
 **HALFLING**
+  The halflings are a simple, homely race. Before the Grand Treaty most halflings were farmers or gardeners in the Hills, and would call upon the Gnomes for help when the Orcs raided their towns. They are traditionally hostile with the Gnomes and Orcs.
+
   - DEX +7, CHA +3
   - STR -4, CON -3
   - Always "fast"
+  - Slings +25%
+  - Starts in the Hills
   - Best suited to be a Rogue
 
+  - Starting equipment:
+    - Leather armor
+    - Leather backpack
+    - Copper axe
+    - Copper shovel
+    - Copper dagger
+    - Sling
+
 **GNOME**
+  Gnomes are mischevious, clever cousins of the Dwarves. They swing between pesky and fun-loving and obsessive and studious. Gnomes are known to stay awake for weeks working on a single contraption just to annoy someone. They are excellent crafters and moderately good magic users but are physically very weak. They are traditionally hostie with the Dwarves, Elves, Halflings, and Orcs, as they have little regard for anyone else's values. They have ostensibly taken part in the Grand Treaty, but many gnomes disregard its statutes when they think they can get away with it.
+
   - INT +5, DEX +5, POW +5
   - STR -3, CON -3
-  - All magic +25%
+  - All magic +15%
   - All crafting +25%
   - Crossbows +10%
+  - Starts in the Caverns
   - Best suited to be a Mage or a Crafter
 
+  - Starting equipment:
+    - Leather armor
+    - Copper pickaxe
+    - Copper axe
+    - Copper dagger
+    - Crossbow
+    - 15 crossbow bolts
+
 **HALF-ORC**
+  Half-orcs are descendants of the extinct Orcs and the early Humans. They retain the Orcs' immense strength and healing, along with their callous aggression and impatience with study. Half-orcs are usually not particularly intelligent, and resort to violence to get what they want. Before the Grand Treaty, the Orcs and Half-orcs were the primary aggressors, and the first Grand Treaty was a union of races to stop them. Once the Orcs were eliminated, the Humans sued for peace with the Half-Orcs, who, fearing for their lives, promised never to attack the City. The Half-orcs never became a part of the Grand Treat alliance, however, and many Half-orcs still raid Halfling and Elvish towns.
+
   - STR +10, CON +10
   - INT -5, POW -5, CHA -5
   - All fighting +50%
   - Racial power: All melee attacks +STRd5, as the "unarmed" bonus.
   - Hostile to most players except Humans (neutral) and other half-orcs
+  - Starts in the Swamp
   - Best suited to be a Melee Fighter
+
+  - Starting equipment:
+    - Iron chestplate
+    - Iron leggings
+    - Iron helm
+    - Iron broadsword
+    - Copper pickaxe
+    - Copper axe
 
 RACIAL ALIGNMENTS:
 ------------------
@@ -135,14 +222,13 @@ Fighting
     - Affects to-hit and damage while fighting. Every hit needs to pass a Fighting Skill / Weapon Quality / DEX check to succeed, and after the hit rolls a Fighting Skill / Weapon Quality / STR check to damage.
   Daggers (cheaper than all others)
   Staves (cheaper than all others)
+  Slings
   Swords
   Battle-Axes
   Polearms
   Flails
   Crossbows
   Bows
-  Bashing (Wielded Nonweapon, like axes and pickaxes)
-  Martial Arts (No weapon)
 Mining
     - Affects mining speed and chance. Every mining hit needs to pass a Mining Skill / Tool Quality / STR / DEX check to destroy the block.
   Axes
@@ -259,3 +345,65 @@ Magic
     - Lifestyle: CON and STR exercised 25% faster
 
 Fighting
+
+MOBS
+====
+Humanoid Mobs: each combination of race and class from the following lists:
+
+Beginner:
+
+KOBOLD WARRIOR/SHAMAN/ARCHER/THEIF
+GOBLIN WARRIOR/SHAMAN/ARCHER/THEIF
+
+Intermediate:
+
+HUMAN SOLDIER/MAGE/ROGUE
+HALFLING SOLDIER/MAGE/ROGUE
+ELVISH ARCHER
+WEREWOLF -- Summons Wolf and Coyote
+VAMPIRE -- XP drain, fast HP regen, death resistant
+
+Difficult:
+
+TROLL -- Fast HP regen
+ELVISH MAGE -- frequently summons animal mobs
+VAMPIRE MAGE -- XP drain, fast HP regen, death resistant, frequently summons BAT along with undead minion mobs
+
+Animal Minion Mobs: Weaker mobs often summoned by Mages
+
+GIANT WASP -- Poison
+SCORPION -- Poison
+GIANT SPIDER -- Poison
+JACKAL
+WOLF
+COYOTE
+WILD CAT
+BAT
+
+Undead Minion Mobs: Slightly more powerful mobs often summoned by Mages. All are cold and death resistant, but do not regenerate health.
+
+HUMAN/HALFLING/ELF/DWARF/GNOME/HALF-ORC ZOMBIE
+SKELETON
+SHADE -- High def but low speed, damage
+GHOUL -- Paralysis
+WRAITH -- XP drain
+LICH -- Summons more undead minion mobs
+
+Minor Demons: Can be summoned by some bosses, or found in deep dungeons. All are fire and death resistant.
+
+MARILITH -- Very fast attack
+SUCCUBUS -- All players movement and attack slowed as they get closer, approaching paralysis if you are on top of the mob
+JUBILEX -- Poison and sickness, poison resistant
+
+Demonic Minions: Can be summoned by Minor demons. All death resistant
+
+IMP
+FIRE DEVIL
+FROST DEVIL
+
+Elemental Mobs: In special biomes or on special quests
+
+FIRE ELEMENTAL
+AIR ELEMENTAL -- Very fast, no sprite (square only), paralysis
+WATER ELEMENTAL -- Creates water tiles, can cause drowning
+EARTH ELEMENTA -- Moves through all obstacles, creates stone, can trap

@@ -1298,7 +1298,7 @@ module.exports = isArray || function (val) {
 },{}],5:[function(require,module,exports){
 var RESOURCES;
 
-exports.RESOURCES = RESOURCES = ['/assets/wizard.png', '/assets/stone.png', '/assets/dirt.png', '/assets/grass.png', '/assets/black.png', '/assets/tree-top.png', '/assets/tree-side.png', '/assets/axe.png', '/assets/wood.png', '/assets/crack1.png', '/assets/crack2.png', '/assets/crack3.png', '/assets/pickaxe.png', '/assets/planks.png', '/assets/tile.png', '/assets/door-side.png', '/assets/door-top.png', '/assets/transparent.png', '/assets/rock.png'];
+exports.RESOURCES = RESOURCES = ['/assets/wizard.png', '/assets/stone.png', '/assets/dirt.png', '/assets/grass.png', '/assets/black.png', '/assets/tree-top.png', '/assets/tree-side.png', '/assets/axe.png', '/assets/wood.png', '/assets/crack1.png', '/assets/crack2.png', '/assets/crack3.png', '/assets/pickaxe.png', '/assets/planks.png', '/assets/tile.png', '/assets/door-side.png', '/assets/door-top.png', '/assets/transparent.png', '/assets/rock.png', '/assets/spear.png', '/assets/bow.png', '/assets/arrow.png'];
 
 exports.loadAssets = function(cb) {
   var i, loaded, resource, _i, _len, _results;
@@ -1338,7 +1338,10 @@ exports.TEXTURE_IDS = {
   'door-side': 15,
   'door-top': 16,
   'transparent': 17,
-  'rock': 18
+  'rock': 18,
+  'spear': 19,
+  'bow': 20,
+  'arrow': 21
 };
 
 
@@ -1400,13 +1403,17 @@ exports.encode = function base64ArrayBuffer(arrayBuffer) {
 }
 
 },{}],7:[function(require,module,exports){
-var BOARD, FRAME_RATE, ITEM_DISPLAY_SIZE, MOBS, MOUSEDOWN, MOUSE_POS, PLAYER, RANGE, RAW_MOUSE_POS, ROTATION, SIM_RATE, SIZE, SPEED, STARTED, TARGET_FLASHING, TARGET_FLASH_TIME, USING_ITEM, VISION_MAX, assets, canvas, ctx, getRecipes, getTarget, i, inventoryCanvases, inventoryList, inventoryTable, items, j, recipeList, redrawInventory, renderRecipes, socket, start, tick, toolUseTick, tr, types, updateMousePos, _fn, _i, _j;
+var BOARD, BULLETS, FRAME_RATE, ITEM_DISPLAY_SIZE, MOBS, MOUSEDOWN, MOUSE_POS, PLAYER, RANGE, RAW_MOUSE_POS, ROTATION, SIM_RATE, SIZE, SPEED, STARTED, TARGET_FLASHING, TARGET_FLASH_TIME, USING_ITEM, VISION_MAX, assets, canvas, ctx, getRecipes, getTarget, healthBar, healthIndicator, i, inventoryCanvases, inventoryList, inventoryTable, items, j, recipeList, redrawInventory, renderRecipes, socket, start, tick, toolUseTick, tr, types, updateMousePos, _fn, _i, _j;
 
 types = require('./types.coffee');
 
 assets = require('./assets.coffee');
 
 items = require('./items.coffee');
+
+healthBar = $('#health-bar');
+
+healthIndicator = $('#health-indicator');
 
 VISION_MAX = 11;
 
@@ -1436,6 +1443,8 @@ PLAYER = new types.Player();
 
 MOBS = [];
 
+BULLETS = [];
+
 ROTATION = Math.PI / 4;
 
 BOARD = new types.GhostBoard(new types.BoardCoordinate(500, 500));
@@ -1459,8 +1468,11 @@ assets.loadAssets(function() {
     PLAYER.pos = types.Vector.parse(data.pos).value;
     PLAYER.velocity = types.Vector.parse(data.vel).value;
     field = types.VisionField.parse(data.vision).value;
+    healthBar.width(190 * data.health / 100);
+    healthIndicator.text("" + data.health + "/100");
     BOARD.update(field.tiles);
     MOBS = field.mobs;
+    BULLETS = field.bullets;
     if (!STARTED) {
       STARTED = true;
       return start();
@@ -1566,6 +1578,11 @@ redrawInventory = function() {
     iCtx.clearRect(0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE);
     if (PLAYER.inventory.contents[i] != null) {
       iCtx.drawImage(PLAYER.inventory.contents[i].texture().get(), 0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE);
+      if (PLAYER.inventory.contents[i].count > 1) {
+        iCtx.fillStyle = '#000';
+        iCtx.font = '12px Arial';
+        iCtx.fillText(PLAYER.inventory.contents[i].count, 0, 12);
+      }
       $(inventoryCanvases[i]).tooltipster('content', PLAYER.inventory.contents[i].name());
     } else {
       $(inventoryCanvases[i]).tooltipster('content', '');
@@ -1634,7 +1651,7 @@ tick = function() {
   }
   protrusions = tiles.filter(function(x) {
     return x.obstacle != null;
-  }).concat(MOBS);
+  }).concat(MOBS).concat(BULLETS);
   protrusions.sort(function(a, b) {
     if (PLAYER.pos.to(a.pos).scalarProject(dir) > PLAYER.pos.to(b.pos).scalarProject(dir)) {
       return 1;
@@ -1717,11 +1734,20 @@ toolUseTick = function() {
         setTimeout((function() {
           return TARGET_FLASHING = false;
         }), TARGET_FLASH_TIME);
-        socket.emit('use-on-tile', {
-          item: item.serialize(),
-          tile: best.serialize(),
-          index: USING_ITEM
-        });
+        if (item.canUseOnTile()) {
+          console.log(item, item.useOnTile);
+          socket.emit('use-on-tile', {
+            item: item.serialize(),
+            tile: best.serialize(),
+            index: USING_ITEM
+          });
+        } else if (item.canShoot()) {
+          socket.emit('shoot', {
+            item: item.serialize(),
+            direction: PLAYER.pos.to(MOUSE_POS).serialize(),
+            index: USING_ITEM
+          });
+        }
         setTimeout(toolUseTick, item.cooldown());
         return;
       }
@@ -1800,8 +1826,44 @@ item('Rock', {
   texture: assets.TEXTURE_IDS['rock']
 });
 
-item('Spear', {
-  texture: assets.TEXTURE_IDS['wizard']
+item('Stone Spear', {
+  texture: assets.TEXTURE_IDS['spear'],
+  shoot: function(player, direction) {
+    return new types.Bullet(player, this, player.pos.clone(), direction.normalize().mult(0.3).add(player.velocity));
+  },
+  bulletLifetime: 10,
+  bulletStrike: function(player, mob) {
+    if (mob !== player) {
+      mob.damage(1 * d(4) + 1);
+      return true;
+    }
+    return false;
+  },
+  cooldown: 500
+});
+
+item('Wood Bow', {
+  texture: assets.TEXTURE_IDS['bow'],
+  shoot: function(player, direction) {
+    if (player.inventory.removeType(ITEM_NAMES['Stone Arrow'])) {
+      return new types.Bullet(player, this, player.pos.clone(), direction.normalize().mult(0.3).add(player.velocity));
+    } else {
+      return null;
+    }
+  },
+  bulletLifetime: 50,
+  bulletStrike: function(player, mob) {
+    if (mob !== player) {
+      mob.damage(1 * d(3));
+      return true;
+    }
+    return false;
+  },
+  cooldown: 1000
+});
+
+item('Stone Arrow', {
+  texture: assets.TEXTURE_IDS['arrow']
 });
 
 item('Wood', {
@@ -2045,7 +2107,7 @@ recipe({
   'Rock': 1,
   'Wood': 4
 }, {
-  'Spear': 1
+  'Stone Spear': 1
 });
 
 recipe({
@@ -2053,6 +2115,20 @@ recipe({
   'Rock': 1
 }, {
   'Door': 1
+});
+
+recipe({
+  'Wood Plank': 1,
+  'Rock': 1
+}, {
+  'Stone Arrow': 2
+});
+
+recipe({
+  'Wood': 1,
+  'Wood Plank': 3
+}, {
+  'Wood Bow': 1
 });
 
 console.log(RECIPES);
@@ -2452,7 +2528,7 @@ exports.SerialType = SerialType = function(extend, properties, methods) {
 
 }).call(this,require("buffer").Buffer)
 },{"./base64.js":6,"buffer":1}],10:[function(require,module,exports){
-var Board, BoardCoordinate, CRACK_1, CRACK_2, CRACK_3, GhostBoard, ITEMSIZE, Inventory, Item, Mob, Obstacle, ObstacleView, Player, SIZE, ShadowQueue, Terrain, Texture, Tile, TileView, Vector, VisionField, assets, items, serial,
+var Board, BoardCoordinate, Bullet, BulletView, CRACK_1, CRACK_2, CRACK_3, GhostBoard, ITEMSIZE, Inventory, Item, Mob, Obstacle, ObstacleView, Player, SIZE, ShadowQueue, Terrain, Texture, Tile, TileView, Vector, VisionField, assets, items, serial,
   __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; },
   __modulo = function(a, b) { return (a % b + +b) % b; },
   __hasProp = {}.hasOwnProperty,
@@ -2486,6 +2562,9 @@ exports.Vector = Vector = serial.SerialType([[serial.Float, 'x'], [serial.Float,
   translate: function(other) {
     this.x += other.x;
     return this.y += other.y;
+  },
+  add: function(other) {
+    return new Vector(this.x + other.x, this.y + other.y);
   },
   touchesTile: function(tile) {
     return Math.abs(tile.x - this.x) < 1 && Math.abs(tile.y - this.y) < 1;
@@ -2524,7 +2603,7 @@ exports.Vector = Vector = serial.SerialType([[serial.Float, 'x'], [serial.Float,
     return this.x + ',' + this.y;
   },
   clone: function() {
-    return c(this.x, this.y);
+    return new Vector(this.x, this.y);
   },
   round: function() {
     return new BoardCoordinate(Math.round(this.x), Math.round(this.y));
@@ -2575,9 +2654,10 @@ exports.Terrain = Terrain = serial.SerialType([[Texture, 'texture']], {
   use: function() {}
 });
 
-exports.Item = Item = serial.SerialType([[serial.Int, 'item_id']], {
-  constructor: function(item_id) {
+exports.Item = Item = serial.SerialType([[serial.Int, 'item_id'], [serial.Uint8, 'count']], {
+  constructor: function(item_id, count) {
     this.item_id = item_id;
+    this.count = count != null ? count : 1;
     if (typeof this.item_id === 'string') {
       return this.item_id = items.ITEM_NAMES[this.item_id];
     }
@@ -2591,8 +2671,23 @@ exports.Item = Item = serial.SerialType([[serial.Int, 'item_id']], {
   cooldown: function() {
     return items.ITEM_TEMPLATES[this.item_id].cooldown;
   },
+  canShoot: function() {
+    return items.ITEM_TEMPLATES[this.item_id].shoot != null;
+  },
+  shoot: function(player, dir) {
+    return items.ITEM_TEMPLATES[this.item_id].shoot.call(this, player, dir);
+  },
+  bulletLifetime: function() {
+    return items.ITEM_TEMPLATES[this.item_id].bulletLifetime;
+  },
+  bulletStrike: function(player, mob) {
+    return items.ITEM_TEMPLATES[this.item_id].bulletStrike.call(this, player, mob);
+  },
+  canUseOnTile: function() {
+    return items.ITEM_TEMPLATES[this.item_id].useOnTile != null;
+  },
   useOnTile: function(player, tile) {
-    return items.ITEM_TEMPLATES[this.item_id].useOnTile(player, tile);
+    return items.ITEM_TEMPLATES[this.item_id].useOnTile.call(this, player, tile);
   }
 });
 
@@ -2685,7 +2780,7 @@ exports.Inventory = Inventory = serial.SerialType([[serial.Array(Item), 'content
       if (counts[_name = el.item_id] == null) {
         counts[_name] = 0;
       }
-      counts[el.item_id]++;
+      counts[el.item_id] += el.count;
     }
     return counts;
   },
@@ -2693,12 +2788,25 @@ exports.Inventory = Inventory = serial.SerialType([[serial.Array(Item), 'content
     return this.contents.length;
   },
   add: function(item) {
-    var fn, _i, _len, _ref;
+    var el, fn, i, _i, _j, _k, _len, _len1, _len2, _ref, _ref1, _ref2;
+    _ref = this.contents;
+    for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
+      el = _ref[i];
+      if (el.item_id === item.item_id) {
+        el.count += item.count;
+        _ref1 = this.handlers.change;
+        for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+          fn = _ref1[_j];
+          fn();
+        }
+        return true;
+      }
+    }
     if (this.contents.length < this.capacity) {
       this.contents.push(item);
-      _ref = this.handlers.change;
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        fn = _ref[_i];
+      _ref2 = this.handlers.change;
+      for (_k = 0, _len2 = _ref2.length; _k < _len2; _k++) {
+        fn = _ref2[_k];
         fn();
       }
       return true;
@@ -2712,7 +2820,10 @@ exports.Inventory = Inventory = serial.SerialType([[serial.Array(Item), 'content
     for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
       el = _ref[i];
       if (el === item) {
-        this.contents.splice(i, 1);
+        el.count--;
+        if (el.count <= 0) {
+          this.contents.splice(i, 1);
+        }
         _ref1 = this.handlers.change;
         for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
           fn = _ref1[_j];
@@ -2729,7 +2840,10 @@ exports.Inventory = Inventory = serial.SerialType([[serial.Array(Item), 'content
     for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
       el = _ref[i];
       if (el.item_id === item_id) {
-        this.contents.splice(i, 1);
+        el.count--;
+        if (el.count <= 0) {
+          this.contents.splice(i, 1);
+        }
         _ref1 = this.handlers.change;
         for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
           fn = _ref1[_j];
@@ -2743,7 +2857,10 @@ exports.Inventory = Inventory = serial.SerialType([[serial.Array(Item), 'content
   removeIndex: function(index) {
     var fn, _i, _len, _ref;
     if (index < this.contents.length) {
-      this.contents.splice(index, 1);
+      this.contents[index].count--;
+      if (this.contents[index].count <= 0) {
+        this.contents.splice(index, 1);
+      }
       _ref = this.handlers.change;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         fn = _ref[_i];
@@ -2920,6 +3037,13 @@ exports.Mob = Mob = serial.SerialType([[Texture, 'texture'], [Vector, 'pos'], [V
     this.velocity = new Vector(0, 0);
     return this.inventory = new Inventory();
   },
+  touches: function(vector) {
+    var _ref, _ref1;
+    return (this.pos.x - 0.5 < (_ref = vector.x) && _ref < this.pos.x + 0.5) && (this.pos.y - 0.5 < (_ref1 = vector.y) && _ref1 < this.pos.y + 0.5);
+  },
+  damage: function(n) {
+    return this.health -= n;
+  },
   render: function(canvas, ctx, cameraRotation, pos) {
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate(cameraRotation);
@@ -2928,6 +3052,50 @@ exports.Mob = Mob = serial.SerialType([[Texture, 'texture'], [Vector, 'pos'], [V
     ctx.strokeRect(-SIZE / 2, -SIZE / 2, SIZE, SIZE);
     ctx.rotate(-cameraRotation);
     ctx.drawImage(this.texture.get(), -SIZE / 2, -SIZE, SIZE, SIZE);
+    return ctx.resetTransform();
+  }
+});
+
+exports.Bullet = Bullet = serial.SerialType([[serial.Int, 'bullet_id'], [serial.Int, 'lifetime'], [Vector, 'pos'], [Vector, 'velocity']], {
+  constructor: function(player, item, pos, velocity) {
+    this.player = player;
+    this.item = item;
+    this.pos = pos;
+    this.velocity = velocity;
+    return this.lifetime = this.item.bulletLifetime();
+  },
+  tick: function() {
+    this.lifetime--;
+    this.pos.translate(this.velocity);
+    return true;
+  },
+  strike: function(mob) {
+    return this.item.bulletStrike(this.player, mob);
+  },
+  view: function() {
+    return new BulletView(this);
+  }
+});
+
+exports.BulletView = BulletView = serial.SerialType([[Vector, 'pos'], [Vector, 'velocity']], {
+  constructor: function(bullet) {
+    if (bullet != null) {
+      this.pos = bullet.pos;
+      return this.velocity = bullet.velocity;
+    }
+  },
+  tick: function() {
+    this.lifetime--;
+    this.pos.translate(this.velocity);
+    return true;
+  },
+  render: function(canvas, ctx, cameraRotation, pos) {
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(cameraRotation);
+    ctx.translate(SIZE * (this.pos.x - pos.x), SIZE * (this.pos.y - pos.y));
+    ctx.rotate(Math.atan2(this.velocity.y, this.velocity.x));
+    ctx.fillStyle = '#FFF';
+    ctx.fillRect(-SIZE, -2, SIZE, 4);
     return ctx.resetTransform();
   }
 });
@@ -2942,10 +3110,11 @@ exports.Player = Player = serial.SerialType(Mob, [], {
   }
 });
 
-exports.VisionField = VisionField = serial.SerialType([[serial.Array(TileView), 'tiles'], [serial.Array(Mob), 'mobs']], {
-  constructor: function(tiles, mobs) {
+exports.VisionField = VisionField = serial.SerialType([[serial.Array(TileView), 'tiles'], [serial.Array(Mob), 'mobs'], [serial.Array(BulletView), 'bullets']], {
+  constructor: function(tiles, mobs, bullets) {
     this.tiles = tiles;
     this.mobs = mobs;
+    this.bullets = bullets;
   }
 });
 

@@ -27,6 +27,8 @@ exports.Vector = Vector = serial.SerialType [
     @x += other.x
     @y += other.y
 
+  add: (other) -> new Vector @x + other.x, @y + other.y
+
   touchesTile: (tile) ->
     Math.abs(tile.x - @x) < 1 and
     Math.abs(tile.y - @y) < 1
@@ -55,7 +57,7 @@ exports.Vector = Vector = serial.SerialType [
 
   dump: -> @x + ',' + @y
 
-  clone: -> c @x, @y
+  clone: -> new Vector @x, @y
 
   round: -> new BoardCoordinate Math.round(@x), Math.round(@y)
 }
@@ -100,8 +102,9 @@ exports.Terrain = Terrain = serial.SerialType [
 
 exports.Item = Item = serial.SerialType [
   [serial.Int, 'item_id']
+  [serial.Uint8, 'count']
 ], {
-  constructor: (@item_id) ->
+  constructor: (@item_id, @count = 1) ->
     if (typeof @item_id is 'string')
       @item_id = items.ITEM_NAMES[@item_id]
 
@@ -109,7 +112,13 @@ exports.Item = Item = serial.SerialType [
   name: -> items.ITEM_TEMPLATES[@item_id].name
   cooldown: -> items.ITEM_TEMPLATES[@item_id].cooldown
 
-  useOnTile: (player, tile) -> items.ITEM_TEMPLATES[@item_id].useOnTile player, tile
+  canShoot: -> items.ITEM_TEMPLATES[@item_id].shoot?
+  shoot: (player, dir) -> items.ITEM_TEMPLATES[@item_id].shoot.call @, player, dir
+  bulletLifetime: -> items.ITEM_TEMPLATES[@item_id].bulletLifetime
+  bulletStrike: (player, mob) -> items.ITEM_TEMPLATES[@item_id].bulletStrike.call @, player, mob
+
+  canUseOnTile: -> items.ITEM_TEMPLATES[@item_id].useOnTile?
+  useOnTile: (player, tile) -> items.ITEM_TEMPLATES[@item_id].useOnTile.call @, player, tile
 }
 
 exports.Obstacle = Obstacle = serial.SerialType [
@@ -179,12 +188,17 @@ exports.Inventory = Inventory = serial.SerialType [
     counts = {}
     for el, i in @contents
       counts[el.item_id] ?= 0
-      counts[el.item_id]++
+      counts[el.item_id] += el.count
     return counts
 
   length: -> @contents.length
 
   add: (item) ->
+    for el, i in @contents
+      if el.item_id is item.item_id
+        el.count += item.count
+        fn() for fn in @handlers.change
+        return true
     if @contents.length < @capacity
       @contents.push item
       # Callbacks
@@ -196,7 +210,8 @@ exports.Inventory = Inventory = serial.SerialType [
   remove: (item) ->
     for el, i in @contents
       if el is item
-        @contents.splice i, 1
+        el.count--
+        @contents.splice(i, 1) if el.count <= 0
         # Callbacks
         fn() for fn in @handlers.change
         return true
@@ -205,7 +220,8 @@ exports.Inventory = Inventory = serial.SerialType [
   removeType: (item_id) ->
     for el, i in @contents
       if el.item_id is item_id
-        @contents.splice i, 1
+        el.count--
+        @contents.splice(i, 1) if el.count <= 0
         # Callbacks
         fn() for fn in @handlers.change
         return true
@@ -213,7 +229,8 @@ exports.Inventory = Inventory = serial.SerialType [
 
   removeIndex: (index) ->
     if index < @contents.length
-      @contents.splice index, 1
+      @contents[index].count--
+      @contents.splice index, 1 if @contents[index].count <= 0
       # Callbacks
       fn() for fn in @handlers.change
       return true
@@ -378,6 +395,13 @@ exports.Mob = Mob = serial.SerialType [
     @velocity = new Vector 0, 0
     @inventory = new Inventory()
 
+  touches: (vector) ->
+    @pos.x - 0.5 < vector.x < @pos.x + 0.5 and
+    @pos.y - 0.5 < vector.y < @pos.y + 0.5
+
+  damage: (n) ->
+    @health -= n
+
   # Render works on the client only
   render: (canvas, ctx, cameraRotation, pos)->
     ctx.translate canvas.width / 2, canvas.height / 2
@@ -387,6 +411,50 @@ exports.Mob = Mob = serial.SerialType [
     ctx.strokeRect -SIZE / 2, -SIZE / 2, SIZE, SIZE
     ctx.rotate -cameraRotation
     ctx.drawImage @texture.get(), -SIZE/2, -SIZE, SIZE, SIZE
+    ctx.resetTransform()
+}
+
+exports.Bullet = Bullet = serial.SerialType [
+  [serial.Int, 'bullet_id']
+  [serial.Int, 'lifetime']
+  [Vector, 'pos']
+  [Vector, 'velocity']
+], {
+  constructor: (@player, @item, @pos, @velocity) ->
+    @lifetime = @item.bulletLifetime()
+
+  tick: ->
+    @lifetime--
+    @pos.translate @velocity
+    return true
+
+  strike: (mob) -> @item.bulletStrike @player, mob
+
+  view: -> new BulletView @
+}
+
+exports.BulletView = BulletView = serial.SerialType [
+  [Vector, 'pos']
+  [Vector, 'velocity']
+], {
+  constructor: (bullet) ->
+    if bullet?
+      @pos = bullet.pos
+      @velocity = bullet.velocity
+
+  tick: ->
+    @lifetime--
+    @pos.translate @velocity
+    return true
+
+  # Render works on the client only
+  render: (canvas, ctx, cameraRotation, pos) ->
+    ctx.translate canvas.width / 2, canvas.height / 2
+    ctx.rotate cameraRotation
+    ctx.translate SIZE * (@pos.x - pos.x), SIZE * (@pos.y - pos.y)
+    ctx.rotate Math.atan2 @velocity.y, @velocity.x
+    ctx.fillStyle = '#FFF'
+    ctx.fillRect -SIZE, -2, SIZE, 4
     ctx.resetTransform()
 }
 
@@ -403,8 +471,9 @@ exports.Player = Player = serial.SerialType Mob, [
 exports.VisionField = VisionField = serial.SerialType [
   [serial.Array(TileView), 'tiles']
   [serial.Array(Mob), 'mobs']
+  [serial.Array(BulletView), 'bullets']
 ], {
-  constructor: (@tiles, @mobs) ->
+  constructor: (@tiles, @mobs, @bullets) ->
 }
 
 # Functional classes

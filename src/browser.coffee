@@ -2,6 +2,9 @@ types = require './types.coffee'
 assets = require './assets.coffee'
 items = require './items.coffee'
 
+healthBar = $ '#health-bar'
+healthIndicator = $ '#health-indicator'
+
 VISION_MAX = 11
 FRAME_RATE = 30
 SIM_RATE = 50
@@ -19,6 +22,7 @@ inventoryCanvases = null
 
 PLAYER = new types.Player()
 MOBS = []
+BULLETS = []
 ROTATION = Math.PI / 4
 BOARD = new types.GhostBoard new types.BoardCoordinate 500, 500
 
@@ -39,8 +43,11 @@ assets.loadAssets ->
     PLAYER.velocity = types.Vector.parse(data.vel).value
 
     field = types.VisionField.parse(data.vision).value
+    healthBar.width 190 * data.health / 100
+    healthIndicator.text "#{data.health}/100"
     BOARD.update field.tiles
     MOBS = field.mobs
+    BULLETS = field.bullets
 
     unless STARTED
       STARTED = true
@@ -130,6 +137,12 @@ redrawInventory = ->
     iCtx.clearRect 0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE
     if PLAYER.inventory.contents[i]?
       iCtx.drawImage PLAYER.inventory.contents[i].texture().get(), 0, 0, ITEM_DISPLAY_SIZE, ITEM_DISPLAY_SIZE
+
+      # Item stack count, if applicable
+      if PLAYER.inventory.contents[i].count > 1
+        iCtx.fillStyle = '#000'
+        iCtx.font = '12px Arial'
+        iCtx.fillText PLAYER.inventory.contents[i].count, 0, 12
       $(inventoryCanvases[i]).tooltipster 'content', PLAYER.inventory.contents[i].name()
     else
       $(inventoryCanvases[i]).tooltipster 'content', ''
@@ -179,7 +192,7 @@ tick = ->
     view.render canvas, ctx, ROTATION, PLAYER.pos
     ctx.globalAlpha = 1 unless coord of visible
 
-  protrusions = tiles.filter((x) -> x.obstacle?).concat MOBS
+  protrusions = tiles.filter((x) -> x.obstacle?).concat(MOBS).concat(BULLETS)
 
   protrusions.sort (a, b) ->
     if PLAYER.pos.to(a.pos).scalarProject(dir) > PLAYER.pos.to(b.pos).scalarProject(dir)
@@ -246,11 +259,20 @@ toolUseTick = ->
         setTimeout (-> TARGET_FLASHING = false), TARGET_FLASH_TIME
 
         # Update inventory if consumed
-        socket.emit 'use-on-tile', {
-          item: item.serialize()
-          tile: best.serialize()
-          index: USING_ITEM
-        }
+        if item.canUseOnTile()
+          console.log item, item.useOnTile
+          socket.emit 'use-on-tile', {
+            item: item.serialize()
+            tile: best.serialize()
+            index: USING_ITEM
+          }
+        else if item.canShoot()
+          socket.emit 'shoot', {
+            item: item.serialize()
+            direction: PLAYER.pos.to(MOUSE_POS).serialize()
+            index: USING_ITEM
+          }
+
         setTimeout toolUseTick, item.cooldown()
         return
   setTimeout toolUseTick, 1000 / FRAME_RATE

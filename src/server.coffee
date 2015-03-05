@@ -15,6 +15,7 @@ io = require('socket.io')(http)
 app.use '/', express.static __dirname + '/..'
 
 MOBS = []
+BULLETS = []
 PLAYERS = []
 BOARD = new types.Board new types.BoardCoordinate 500, 500
 BOARD.each (x, y, tile) ->
@@ -38,8 +39,8 @@ io.on 'connection', (socket) ->
     socket.emit 'inventory', player.inventory.serialize()
 
   player.inventory.add new types.Item 'Axe'
-  player.inventory.add new types.Item 'Door'
   player.inventory.add new types.Item 'Pickaxe'
+  player.inventory.add new types.Item 'Stone Spear'
 
   socket.on 'move', (vector) ->
     player.velocity = types.Vector.parse(vector).value
@@ -62,7 +63,6 @@ io.on 'connection', (socket) ->
 
   socket.on 'use-tile', (coord) ->
     coord = types.BoardCoordinate.parse(coord).value
-    console.log coord, BOARD.get(coord)
     BOARD.get(coord).use(player)
 
   socket.on 'drop', (data) ->
@@ -79,19 +79,46 @@ io.on 'connection', (socket) ->
   socket.on 'craft', (id) ->
     items.RECIPES[id].attempt player.inventory
 
+  socket.on 'shoot', (data) ->
+    item = types.Item.parse(data.item).value
+    index = data.index
+    direction = types.Vector.parse(data.direction).value
+
+    usageQueue.push {
+      type: 'shoot'
+      item, direction, index
+    }
+
+    unless awaitingUsage
+      consumeUsageQueue()
+
   consumeUsageQueue = ->
     if usageQueue.length is 0
       awaitingUsage = false
     else
       awaitingUsage = true
-      {type, item, index, tile} = usageQueue.shift()
+      usage = usageQueue.shift()
 
-      # Verify that the player indeed owns such an item
-      if player.inventory.get(index).item_id is item.item_id
-        if item.useOnTile player, tile
-          player.inventory.removeIndex index
+      if usage.type is 'tile'
+        {item, index, tile} = usage
 
-      setTimeout consumeUsageQueue, item.cooldown()
+        # Verify that the player indeed owns such an item
+        if player.inventory.get(index).item_id is item.item_id
+          if item.useOnTile player, tile
+            player.inventory.removeIndex index
+
+        setTimeout consumeUsageQueue, item.cooldown()
+
+      else if usage.type is 'shoot'
+        {item, index, direction} = usage
+
+        # Verify that the player indeed owns such an item
+        if player.inventory.get(index).item_id is item.item_id
+          bullet = item.shoot player, direction
+          if bullet?
+            BULLETS.push bullet
+
+        setTimeout consumeUsageQueue, item.cooldown()
 
   socket.on 'disconnect', ->
     # Remove from players
@@ -122,11 +149,13 @@ emit = ->
     player.board.update tileVision
 
     mobVision = MOBS.filter((x) -> x.pos.round().dump() of visible)
+    bulletVision = BULLETS.filter((x) -> x.pos.round().dump() of visible).map (x) -> x.view()
 
     # Package in a known-type VisionField
-    field = new types.VisionField tileVision, mobVision
+    field = new types.VisionField tileVision, mobVision, bulletVision
 
     player.socket.emit 'update', {
+      health: player.player.health
       pos: player.player.pos.serialize()
       vel: player.player.velocity.serialize()
       vision: (buffer = field.serialize())
@@ -142,6 +171,22 @@ emit()
 sim = ->
   for player in PLAYERS
     types.translateOKComponent BOARD, player.player.pos, player.player.velocity
+
+  BULLETS = BULLETS.filter (bullet) ->
+    bullet.tick()
+
+    if bullet.lifetime < 0
+      return false
+    else
+      for mob in MOBS
+        if mob.touches(bullet.pos)
+          if bullet.strike(mob)
+            return false
+    return true
+
+  MOBS = MOBS.filter (mob) ->
+    mob.health > 0
+
   setTimeout sim, 1000 / SIM_RATE
 
 sim()

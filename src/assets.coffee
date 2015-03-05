@@ -18,6 +18,9 @@ exports.RESOURCES = RESOURCES = [
   '/assets/door-top.png'
   '/assets/transparent.png'
   '/assets/rock.png'
+  '/assets/spear.png'
+  '/assets/bow.png'
+  '/assets/arrow.png'
 ]
 
 # loadAssets, which works on client-side only
@@ -53,4 +56,7 @@ exports.TEXTURE_IDS = {
   'door-top': 16
   'transparent': 17
   'rock': 18
+  'spear': 19
+  'bow': 20
+  'arrow': 21
 }

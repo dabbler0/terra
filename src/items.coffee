@@ -53,8 +53,43 @@ item 'Stone',
 item 'Rock',
   texture: assets.TEXTURE_IDS['rock']
 
-item 'Spear',
-  texture: assets.TEXTURE_IDS['wizard'] # TODO a spear is not a wizard
+item 'Stone Spear',
+  texture: assets.TEXTURE_IDS['spear']
+
+  shoot: (player, direction) ->
+    new types.Bullet(player, @, player.pos.clone(), direction.normalize().mult(0.3).add(player.velocity))
+
+  bulletLifetime: 10
+
+  bulletStrike: (player, mob) ->
+    unless mob is player
+      mob.damage 1 * d(4) + 1
+      return true
+    return false
+
+  cooldown: 500
+
+item 'Wood Bow',
+  texture: assets.TEXTURE_IDS['bow']
+
+  shoot: (player, direction) ->
+    if player.inventory.removeType ITEM_NAMES['Stone Arrow']
+      return new types.Bullet(player, @, player.pos.clone(), direction.normalize().mult(0.3).add(player.velocity))
+    else
+      return null
+
+  bulletLifetime: 50
+
+  bulletStrike: (player, mob) ->
+    unless mob is player
+      mob.damage 1 * d(3)
+      return true
+    return false
+
+  cooldown: 1000
+
+item 'Stone Arrow',
+  texture: assets.TEXTURE_IDS['arrow']
 
 item 'Wood',
   texture: assets.TEXTURE_IDS['wood']
@@ -257,7 +292,7 @@ recipe {
   'Rock': 1
   'Wood': 4
 }, {
-  'Spear': 1
+  'Stone Spear': 1
 }
 
 recipe {
@@ -265,6 +300,20 @@ recipe {
   'Rock': 1
 }, {
   'Door': 1
+}
+
+recipe {
+  'Wood Plank': 1
+  'Rock': 1
+}, {
+  'Stone Arrow': 2
+}
+
+recipe {
+  'Wood': 1
+  'Wood Plank': 3
+}, {
+  'Wood Bow': 1
 }
 
 console.log RECIPES
