@@ -32,7 +32,7 @@ BOARD.each (x, y, tile) ->
     if 200 < x < 300 and 200 < y < 300
       freeTiles.push [x, y]
 
-for [0...30]
+for [0...20]
   position = freeTiles[Math.floor Math.random() * freeTiles.length]
   console.log 'creating at', position
   weapon = if Math.random() < 0.5 then new types.Item('Stone Spear') else new types.Item('Copper Sword')
