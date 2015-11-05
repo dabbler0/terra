@@ -48,7 +48,16 @@ item 'Stone',
       return true
     return false
 
-  cooldown: 500
+  cooldown: 25
+
+item 'Health Potion',
+  texture: assets.TEXTURE_IDS['red-potion']
+
+  useOnTile: (player, tile) ->
+    player.health = Math.min player.health + 20, player.maxhealth
+    return true
+
+  cooldown: 25
 
 item 'Rock',
   texture: assets.TEXTURE_IDS['rock']
@@ -57,9 +66,10 @@ item 'Stone Spear',
   texture: assets.TEXTURE_IDS['spear']
 
   shoot: (player, direction) ->
-    new types.Bullet(player, @, player.pos.clone(), direction.normalize().mult(0.3).add(player.velocity))
+    new types.Bullet(player, @, player.pos.clone(), direction.normalize().mult(0.3).add(player.velocity), direction.clone())
 
-  bulletLifetime: 10
+  bulletLifetime: 15
+  range: 4.5 # TODO automatically compute this so it is correct
 
   bulletStrike: (player, mob) ->
     unless mob is player
@@ -67,18 +77,36 @@ item 'Stone Spear',
       return true
     return false
 
-  cooldown: 500
+  cooldown: 25
+
+item 'Copper Sword',
+  texture: assets.TEXTURE_IDS['sword']
+
+  shoot: (player, direction) ->
+    new types.Bullet(player, @, player.pos.clone(), direction.normalize().mult(0.5).add(player.velocity), direction.clone())
+
+  bulletLifetime: 5
+  range: 2.5 # TODO automatically compute this so it is correct
+
+  bulletStrike: (player, mob) ->
+    unless mob is player
+      mob.damage 1 * d(5) + 1
+      return true
+    return false
+
+  cooldown: 10
 
 item 'Wood Bow',
   texture: assets.TEXTURE_IDS['bow']
 
   shoot: (player, direction) ->
     if player.inventory.removeType ITEM_NAMES['Stone Arrow']
-      return new types.Bullet(player, @, player.pos.clone(), direction.normalize().mult(0.3).add(player.velocity))
+      return new types.Bullet(player, @, player.pos.clone(), direction.normalize().mult(0.3).add(player.velocity), direction.clone())
     else
       return null
 
   bulletLifetime: 50
+  range: 15
 
   bulletStrike: (player, mob) ->
     unless mob is player
@@ -86,7 +114,7 @@ item 'Wood Bow',
       return true
     return false
 
-  cooldown: 1000
+  cooldown: 50
 
 item 'Stone Arrow',
   texture: assets.TEXTURE_IDS['arrow']
@@ -100,7 +128,7 @@ item 'Wood',
       return true
     return false
 
-  cooldown: 500
+  cooldown: 25
 
 item 'Wood Plank',
   texture: assets.TEXTURE_IDS['wood-plank']
@@ -111,7 +139,7 @@ item 'Wood Plank',
       return true
     return false
 
-  cooldown: 500
+  cooldown: 25
 
 item 'Stone Tile',
   texture: assets.TEXTURE_IDS['stone-tile']
@@ -122,7 +150,7 @@ item 'Stone Tile',
       return true
     return false
 
-  cooldown: 500
+  cooldown: 25
 
 item 'Axe',
   texture: assets.TEXTURE_IDS['axe']
@@ -132,7 +160,7 @@ item 'Axe',
       tile.damageObstacle 1 * d(3)
     return false
 
-  cooldown: 500
+  cooldown: 25
 
 item 'Pickaxe',
   texture: assets.TEXTURE_IDS['pickaxe']
@@ -142,7 +170,7 @@ item 'Pickaxe',
       tile.damageObstacle 1 * d(3)
     return false
 
-  cooldown: 1000
+  cooldown: 50
 
 item 'Door',
   texture: assets.TEXTURE_IDS['door-side']
@@ -153,7 +181,7 @@ item 'Door',
       return true
     return false
 
-  cooldown: 500
+  cooldown: 25
 
 # OBSTAACLES
 # ==========

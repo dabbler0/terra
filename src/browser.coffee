@@ -8,6 +8,7 @@ healthIndicator = $ '#health-indicator'
 VISION_MAX = 11
 FRAME_RATE = 30
 SIM_RATE = 50
+SERVER_SIM_RATE = 50
 SIZE = 40
 RANGE = 2 # TODO move to items
 SPEED = 10 / SIM_RATE # Tiles per Second
@@ -273,6 +274,6 @@ toolUseTick = ->
             index: USING_ITEM
           }
 
-        setTimeout toolUseTick, item.cooldown()
+        setTimeout toolUseTick, item.cooldown() * 1000 / SERVER_SIM_RATE
         return
   setTimeout toolUseTick, 1000 / FRAME_RATE

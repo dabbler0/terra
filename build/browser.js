@@ -1298,7 +1298,7 @@ module.exports = isArray || function (val) {
 },{}],5:[function(require,module,exports){
 var RESOURCES;
 
-exports.RESOURCES = RESOURCES = ['/assets/wizard.png', '/assets/stone.png', '/assets/dirt.png', '/assets/grass.png', '/assets/black.png', '/assets/tree-top.png', '/assets/tree-side.png', '/assets/axe.png', '/assets/wood.png', '/assets/crack1.png', '/assets/crack2.png', '/assets/crack3.png', '/assets/pickaxe.png', '/assets/planks.png', '/assets/tile.png', '/assets/door-side.png', '/assets/door-top.png', '/assets/transparent.png', '/assets/rock.png', '/assets/spear.png', '/assets/bow.png', '/assets/arrow.png'];
+exports.RESOURCES = RESOURCES = ['/assets/wizard.png', '/assets/stone.png', '/assets/dirt.png', '/assets/grass.png', '/assets/black.png', '/assets/tree-top.png', '/assets/tree-side.png', '/assets/axe.png', '/assets/wood.png', '/assets/crack1.png', '/assets/crack2.png', '/assets/crack3.png', '/assets/pickaxe.png', '/assets/planks.png', '/assets/tile.png', '/assets/door-side.png', '/assets/door-top.png', '/assets/transparent.png', '/assets/rock.png', '/assets/spear.png', '/assets/bow.png', '/assets/arrow.png', '/assets/sword.png', '/assets/warrior.png', '/assets/red-potion.png'];
 
 exports.loadAssets = function(cb) {
   var i, loaded, resource, _i, _len, _results;
@@ -1341,7 +1341,10 @@ exports.TEXTURE_IDS = {
   'rock': 18,
   'spear': 19,
   'bow': 20,
-  'arrow': 21
+  'arrow': 21,
+  'sword': 22,
+  'warrior': 23,
+  'red-potion': 24
 };
 
 
@@ -1403,7 +1406,7 @@ exports.encode = function base64ArrayBuffer(arrayBuffer) {
 }
 
 },{}],7:[function(require,module,exports){
-var BOARD, BULLETS, FRAME_RATE, ITEM_DISPLAY_SIZE, MOBS, MOUSEDOWN, MOUSE_POS, PLAYER, RANGE, RAW_MOUSE_POS, ROTATION, SIM_RATE, SIZE, SPEED, STARTED, TARGET_FLASHING, TARGET_FLASH_TIME, USING_ITEM, VISION_MAX, assets, canvas, ctx, getRecipes, getTarget, healthBar, healthIndicator, i, inventoryCanvases, inventoryList, inventoryTable, items, j, recipeList, redrawInventory, renderRecipes, socket, start, tick, toolUseTick, tr, types, updateMousePos, _fn, _i, _j;
+var BOARD, BULLETS, FRAME_RATE, ITEM_DISPLAY_SIZE, MOBS, MOUSEDOWN, MOUSE_POS, PLAYER, RANGE, RAW_MOUSE_POS, ROTATION, SERVER_SIM_RATE, SIM_RATE, SIZE, SPEED, STARTED, TARGET_FLASHING, TARGET_FLASH_TIME, USING_ITEM, VISION_MAX, assets, canvas, ctx, getRecipes, getTarget, healthBar, healthIndicator, i, inventoryCanvases, inventoryList, inventoryTable, items, j, recipeList, redrawInventory, renderRecipes, socket, start, tick, toolUseTick, tr, types, updateMousePos, _fn, _i, _j;
 
 types = require('./types.coffee');
 
@@ -1420,6 +1423,8 @@ VISION_MAX = 11;
 FRAME_RATE = 30;
 
 SIM_RATE = 50;
+
+SERVER_SIM_RATE = 50;
 
 SIZE = 40;
 
@@ -1748,7 +1753,7 @@ toolUseTick = function() {
             index: USING_ITEM
           });
         }
-        setTimeout(toolUseTick, item.cooldown());
+        setTimeout(toolUseTick, item.cooldown() * 1000 / SERVER_SIM_RATE);
         return;
       }
     }
@@ -1819,7 +1824,16 @@ item('Stone', {
     }
     return false;
   },
-  cooldown: 500
+  cooldown: 25
+});
+
+item('Health Potion', {
+  texture: assets.TEXTURE_IDS['red-potion'],
+  useOnTile: function(player, tile) {
+    player.health = Math.min(player.health + 20, player.maxhealth);
+    return true;
+  },
+  cooldown: 25
 });
 
 item('Rock', {
@@ -1829,9 +1843,10 @@ item('Rock', {
 item('Stone Spear', {
   texture: assets.TEXTURE_IDS['spear'],
   shoot: function(player, direction) {
-    return new types.Bullet(player, this, player.pos.clone(), direction.normalize().mult(0.3).add(player.velocity));
+    return new types.Bullet(player, this, player.pos.clone(), direction.normalize().mult(0.3).add(player.velocity), direction.clone());
   },
-  bulletLifetime: 10,
+  bulletLifetime: 15,
+  range: 4.5,
   bulletStrike: function(player, mob) {
     if (mob !== player) {
       mob.damage(1 * d(4) + 1);
@@ -1839,19 +1854,37 @@ item('Stone Spear', {
     }
     return false;
   },
-  cooldown: 500
+  cooldown: 25
+});
+
+item('Copper Sword', {
+  texture: assets.TEXTURE_IDS['sword'],
+  shoot: function(player, direction) {
+    return new types.Bullet(player, this, player.pos.clone(), direction.normalize().mult(0.5).add(player.velocity), direction.clone());
+  },
+  bulletLifetime: 5,
+  range: 2.5,
+  bulletStrike: function(player, mob) {
+    if (mob !== player) {
+      mob.damage(1 * d(5) + 1);
+      return true;
+    }
+    return false;
+  },
+  cooldown: 10
 });
 
 item('Wood Bow', {
   texture: assets.TEXTURE_IDS['bow'],
   shoot: function(player, direction) {
     if (player.inventory.removeType(ITEM_NAMES['Stone Arrow'])) {
-      return new types.Bullet(player, this, player.pos.clone(), direction.normalize().mult(0.3).add(player.velocity));
+      return new types.Bullet(player, this, player.pos.clone(), direction.normalize().mult(0.3).add(player.velocity), direction.clone());
     } else {
       return null;
     }
   },
   bulletLifetime: 50,
+  range: 15,
   bulletStrike: function(player, mob) {
     if (mob !== player) {
       mob.damage(1 * d(3));
@@ -1859,7 +1892,7 @@ item('Wood Bow', {
     }
     return false;
   },
-  cooldown: 1000
+  cooldown: 50
 });
 
 item('Stone Arrow', {
@@ -1875,7 +1908,7 @@ item('Wood', {
     }
     return false;
   },
-  cooldown: 500
+  cooldown: 25
 });
 
 item('Wood Plank', {
@@ -1887,7 +1920,7 @@ item('Wood Plank', {
     }
     return false;
   },
-  cooldown: 500
+  cooldown: 25
 });
 
 item('Stone Tile', {
@@ -1899,7 +1932,7 @@ item('Stone Tile', {
     }
     return false;
   },
-  cooldown: 500
+  cooldown: 25
 });
 
 item('Axe', {
@@ -1910,7 +1943,7 @@ item('Axe', {
     }
     return false;
   },
-  cooldown: 500
+  cooldown: 25
 });
 
 item('Pickaxe', {
@@ -1921,7 +1954,7 @@ item('Pickaxe', {
     }
     return false;
   },
-  cooldown: 1000
+  cooldown: 50
 });
 
 item('Door', {
@@ -1933,7 +1966,7 @@ item('Door', {
     }
     return false;
   },
-  cooldown: 500
+  cooldown: 25
 });
 
 BASE_OBSTACLE = {
@@ -2528,7 +2561,7 @@ exports.SerialType = SerialType = function(extend, properties, methods) {
 
 }).call(this,require("buffer").Buffer)
 },{"./base64.js":6,"buffer":1}],10:[function(require,module,exports){
-var Board, BoardCoordinate, Bullet, BulletView, CRACK_1, CRACK_2, CRACK_3, GhostBoard, ITEMSIZE, Inventory, Item, Mob, Obstacle, ObstacleView, Player, SIZE, ShadowQueue, Terrain, Texture, Tile, TileView, Vector, VisionField, assets, items, serial,
+var BULLET_HEIGHT, BULLET_WIDTH, Board, BoardCoordinate, Bullet, BulletView, CRACK_1, CRACK_2, CRACK_3, GhostBoard, ITEMSIZE, Inventory, Item, LurkingDenizen, Mob, Obstacle, ObstacleView, Player, SIZE, ShadowQueue, Terrain, Texture, Tile, TileView, Vector, VisionField, assets, items, serial,
   __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; },
   __modulo = function(a, b) { return (a % b + +b) % b; },
   __hasProp = {}.hasOwnProperty,
@@ -2541,6 +2574,10 @@ items = require('./items.coffee');
 assets = require('./assets.coffee');
 
 SIZE = 40;
+
+BULLET_WIDTH = 20;
+
+BULLET_HEIGHT = 10;
 
 ITEMSIZE = 15;
 
@@ -2577,6 +2614,15 @@ exports.Vector = Vector = serial.SerialType([[serial.Float, 'x'], [serial.Float,
   },
   mag: function() {
     return Math.sqrt(this.x * this.x + this.y * this.y);
+  },
+  toMagnitude: function(mag) {
+    var cmag;
+    cmag = this.mag();
+    if (cmag > 0) {
+      return new Vector(this.x * mag / cmag, this.y * mag / cmag);
+    } else {
+      return this;
+    }
   },
   normalize: function() {
     var mag;
@@ -2661,6 +2707,9 @@ exports.Item = Item = serial.SerialType([[serial.Int, 'item_id'], [serial.Uint8,
     if (typeof this.item_id === 'string') {
       return this.item_id = items.ITEM_NAMES[this.item_id];
     }
+  },
+  template: function() {
+    return items.ITEM_TEMPLATES[this.item_id];
   },
   texture: function() {
     return new Texture(items.ITEM_TEMPLATES[this.item_id].texture);
@@ -3030,7 +3079,7 @@ exports.TileView = TileView = serial.SerialType([[BoardCoordinate, 'pos'], [Text
   }
 });
 
-exports.Mob = Mob = serial.SerialType([[Texture, 'texture'], [Vector, 'pos'], [Vector, 'velocity'], [serial.Int, 'health'], [Inventory, 'inventory']], {
+exports.Mob = Mob = serial.SerialType([[Texture, 'texture'], [Vector, 'pos'], [Vector, 'velocity'], [serial.Int, 'health'], [serial.Int, 'maxhealth'], [Inventory, 'inventory']], {
   constructor: function(texture, pos) {
     this.texture = texture;
     this.pos = pos;
@@ -3052,17 +3101,62 @@ exports.Mob = Mob = serial.SerialType([[Texture, 'texture'], [Vector, 'pos'], [V
     ctx.strokeRect(-SIZE / 2, -SIZE / 2, SIZE, SIZE);
     ctx.rotate(-cameraRotation);
     ctx.drawImage(this.texture.get(), -SIZE / 2, -SIZE, SIZE, SIZE);
+    ctx.fillStyle = '#0F0';
+    ctx.fillRect(-SIZE / 2, -SIZE - 5, SIZE * (this.health / this.maxhealth), 5);
+    ctx.fillStyle = '#F00';
+    ctx.fillRect(-SIZE / 2 + SIZE * (this.health / this.maxhealth), -SIZE - 5, SIZE * (1 - this.health / this.maxhealth), 5);
     return ctx.resetTransform();
   }
 });
 
-exports.Bullet = Bullet = serial.SerialType([[serial.Int, 'bullet_id'], [serial.Int, 'lifetime'], [Vector, 'pos'], [Vector, 'velocity']], {
-  constructor: function(player, item, pos, velocity) {
+exports.LurkingDenizen = LurkingDenizen = serial.SerialType(Mob, [[Vector, 'spawnPoint'], [serial.Float, 'speed']], {
+  constructor: function(texture, spawnPoint, speed, weapon, inventory) {
+    var item, _i, _len;
+    this.texture = texture;
+    this.spawnPoint = spawnPoint;
+    this.speed = speed;
+    this.weapon = weapon;
+    if (inventory == null) {
+      inventory = [];
+    }
+    this.pos = this.spawnPoint.clone();
+    this.velocity = new Vector(0, 0);
+    this.inventory = new Inventory(20);
+    this.inventory.add(this.weapon);
+    for (_i = 0, _len = inventory.length; _i < _len; _i++) {
+      item = inventory[_i];
+      this.inventory.add(item);
+    }
+    this.health = this.maxhealth = 50;
+    return this.timeUntilShoot = this.weapon.cooldown();
+  },
+  tick: function(board, mobs) {
+    if (mobs.length > 0) {
+      if (this.pos.distance(mobs[0].pos) >= this.weapon.template().range) {
+        this.velocity = this.pos.to(mobs[0].pos).toMagnitude(this.speed);
+      } else {
+        this.velocity = this.pos.to(mobs[0].pos).toMagnitude(-this.speed);
+      }
+      if (this.timeUntilShoot <= 0) {
+        board.bullets.push(this.weapon.shoot(this, this.pos.to(mobs[0].pos)));
+        return this.timeUntilShoot = this.weapon.cooldown();
+      } else {
+        return this.timeUntilShoot--;
+      }
+    } else {
+      return this.velocity = this.pos.to(this.spawnPoint).toMagnitude(this.speed);
+    }
+  }
+});
+
+exports.Bullet = Bullet = serial.SerialType([[serial.Int, 'bullet_id'], [serial.Int, 'lifetime'], [Vector, 'pos'], [Vector, 'velocity'], [serial.Float, 'angle']], {
+  constructor: function(player, item, pos, velocity, direction) {
     this.player = player;
     this.item = item;
     this.pos = pos;
     this.velocity = velocity;
-    return this.lifetime = this.item.bulletLifetime();
+    this.lifetime = this.item.bulletLifetime();
+    return this.angle = Math.atan2(direction.y, direction.x);
   },
   tick: function() {
     this.lifetime--;
@@ -3077,11 +3171,12 @@ exports.Bullet = Bullet = serial.SerialType([[serial.Int, 'bullet_id'], [serial.
   }
 });
 
-exports.BulletView = BulletView = serial.SerialType([[Vector, 'pos'], [Vector, 'velocity']], {
+exports.BulletView = BulletView = serial.SerialType([[Vector, 'pos'], [Vector, 'velocity'], [serial.Float, 'angle']], {
   constructor: function(bullet) {
     if (bullet != null) {
       this.pos = bullet.pos;
-      return this.velocity = bullet.velocity;
+      this.velocity = bullet.velocity;
+      return this.angle = bullet.angle;
     }
   },
   tick: function() {
@@ -3093,9 +3188,9 @@ exports.BulletView = BulletView = serial.SerialType([[Vector, 'pos'], [Vector, '
     ctx.translate(canvas.width / 2, canvas.height / 2);
     ctx.rotate(cameraRotation);
     ctx.translate(SIZE * (this.pos.x - pos.x), SIZE * (this.pos.y - pos.y));
-    ctx.rotate(Math.atan2(this.velocity.y, this.velocity.x));
+    ctx.rotate(this.angle);
     ctx.fillStyle = '#FFF';
-    ctx.fillRect(-SIZE, -2, SIZE, 4);
+    ctx.fillRect(-BULLET_WIDTH, -BULLET_HEIGHT / 2, BULLET_WIDTH, BULLET_HEIGHT);
     return ctx.resetTransform();
   }
 });
@@ -3103,7 +3198,7 @@ exports.BulletView = BulletView = serial.SerialType([[Vector, 'pos'], [Vector, '
 exports.Player = Player = serial.SerialType(Mob, [], {
   constructor: function() {
     this.texture = new Texture('wizard');
-    this.health = 100;
+    this.health = this.maxhealth = 100;
     this.pos = new Vector(250, 250);
     this.velocity = new Vector(0, 0);
     return this.inventory = new Inventory();
@@ -3217,6 +3312,7 @@ exports.Board = Board = (function() {
       }
       return _results;
     }).call(this);
+    this.bullets = [];
   }
 
   Board.prototype.getCircle = function(_arg, r) {

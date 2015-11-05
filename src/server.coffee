@@ -15,9 +15,9 @@ io = require('socket.io')(http)
 app.use '/', express.static __dirname + '/..'
 
 MOBS = []
-BULLETS = []
 PLAYERS = []
 BOARD = new types.Board new types.BoardCoordinate 500, 500
+freeTiles = []
 BOARD.each (x, y, tile) ->
   if Math.sqrt((x - 250) ** 2 + (y - 0) ** 2) < 200
     tile.obstacle = new types.Obstacle 'stone'
@@ -29,6 +29,25 @@ BOARD.each (x, y, tile) ->
 
   else
     tile.terrain = new types.Terrain (new types.Texture 'grass')
+    if 200 < x < 300 and 200 < y < 300
+      freeTiles.push [x, y]
+
+for [0...30]
+  position = freeTiles[Math.floor Math.random() * freeTiles.length]
+  console.log 'creating at', position
+  weapon = if Math.random() < 0.5 then new types.Item('Stone Spear') else new types.Item('Copper Sword')
+
+  MOBS.push denizen = new types.LurkingDenizen(
+    (new types.Texture 'warrior'),
+    new types.Vector(position[0], position[1])
+    SPEED * 2 / 3,
+    weapon,
+    [
+      new types.Item('Health Potion')
+    ]
+  )
+
+  console.log denizen.inventory
 
 io.on 'connection', (socket) ->
   player = new types.Player()
@@ -40,7 +59,7 @@ io.on 'connection', (socket) ->
 
   player.inventory.add new types.Item 'Axe'
   player.inventory.add new types.Item 'Pickaxe'
-  player.inventory.add new types.Item 'Stone Spear'
+  player.inventory.add new types.Item 'Copper Sword'
 
   socket.on 'move', (vector) ->
     player.velocity = types.Vector.parse(vector).value
@@ -69,7 +88,7 @@ io.on 'connection', (socket) ->
     index = data.index
     item = types.Item.parse(data.item).value
 
-    if player.inventory.get(index).item_id is item.item_id
+    if player.inventory.get(index)?.item_id is item.item_id
       player.inventory.removeIndex index
       BOARD.get(player.pos.round()).inventory.add item
 
@@ -103,22 +122,22 @@ io.on 'connection', (socket) ->
         {item, index, tile} = usage
 
         # Verify that the player indeed owns such an item
-        if player.inventory.get(index).item_id is item.item_id
+        if player.inventory.get(index)?.item_id is item.item_id
           if item.useOnTile player, tile
             player.inventory.removeIndex index
 
-        setTimeout consumeUsageQueue, item.cooldown()
+        setTickTimeout consumeUsageQueue, item.cooldown()
 
       else if usage.type is 'shoot'
         {item, index, direction} = usage
 
         # Verify that the player indeed owns such an item
-        if player.inventory.get(index).item_id is item.item_id
+        if player.inventory.get(index)?.item_id is item.item_id
           bullet = item.shoot player, direction
           if bullet?
-            BULLETS.push bullet
+            BOARD.bullets.push bullet
 
-        setTimeout consumeUsageQueue, item.cooldown()
+        setTickTimeout consumeUsageQueue, item.cooldown()
 
   socket.on 'disconnect', ->
     # Remove from players
@@ -149,7 +168,7 @@ emit = ->
     player.board.update tileVision
 
     mobVision = MOBS.filter((x) -> x.pos.round().dump() of visible)
-    bulletVision = BULLETS.filter((x) -> x.pos.round().dump() of visible).map (x) -> x.view()
+    bulletVision = BOARD.bullets.filter((x) -> x.pos.round().dump() of visible).map (x) -> x.view()
 
     # Package in a known-type VisionField
     field = new types.VisionField tileVision, mobVision, bulletVision
@@ -168,11 +187,32 @@ emit = ->
 
 emit()
 
-sim = ->
-  for player in PLAYERS
-    types.translateOKComponent BOARD, player.player.pos, player.player.velocity
+time = 0
+scheduled = {}
+setTickTimeout = (fn, ticks) ->
+  scheduled[time + ticks] ?= []
+  scheduled[time + ticks].push fn
 
-  BULLETS = BULLETS.filter (bullet) ->
+sim = ->
+  # Do all the delayed stuff
+  time += 1
+  if time of scheduled
+    fn() for fn in scheduled[time]
+    delete scheduled[time]
+
+  # Tick any intelligent mobs. For performance purposes, disregard mobs that are very far off-screen.
+  activeMobs = MOBS.filter (mob) ->
+    PLAYERS.length > 0 and PLAYERS.map((player) -> player.player.pos.distance(mob.pos)).reduce(Math.min) < 15
+  activeMobs.forEach (mob) ->
+    if mob.tick?
+      vision = BOARD.shadowcast mob.pos, types.PLAYER_SEE, 6 # TODO 10 is arbitrary
+      seenMobs = PLAYERS.map((x) -> x.player).filter (x) -> (x.pos.round().dump() of vision)
+      mob.tick BOARD, seenMobs
+
+  for mob in MOBS
+    types.translateOKComponent BOARD, mob.pos, mob.velocity
+
+  BOARD.bullets = BOARD.bullets.filter (bullet) ->
     bullet.tick()
 
     if bullet.lifetime < 0
@@ -185,7 +225,11 @@ sim = ->
     return true
 
   MOBS = MOBS.filter (mob) ->
-    mob.health > 0
+    if mob.health <= 0
+      mob.inventory.dump BOARD.get(mob.pos.round()).inventory
+      return false
+    else
+      return true
 
   setTimeout sim, 1000 / SIM_RATE
 

@@ -3,6 +3,8 @@ items = require './items.coffee'
 assets = require './assets.coffee'
 
 SIZE = 40
+BULLET_WIDTH = 20
+BULLET_HEIGHT = 10
 ITEMSIZE = 15
 
 exports.PLAYER_SEE = (tile) -> tile.translucent()
@@ -39,6 +41,13 @@ exports.Vector = Vector = serial.SerialType [
   to: (other) -> new Vector other.x - @x, other.y - @y
 
   mag: -> Math.sqrt @x * @x + @y * @y
+
+  toMagnitude: (mag) ->
+    cmag = @mag()
+    if cmag > 0
+      return new Vector @x * mag / cmag, @y * mag / cmag
+    else
+      return @
 
   normalize: ->
     mag = @mag()
@@ -107,6 +116,8 @@ exports.Item = Item = serial.SerialType [
   constructor: (@item_id, @count = 1) ->
     if (typeof @item_id is 'string')
       @item_id = items.ITEM_NAMES[@item_id]
+
+  template: -> items.ITEM_TEMPLATES[@item_id]
 
   texture: -> new Texture items.ITEM_TEMPLATES[@item_id].texture
   name: -> items.ITEM_TEMPLATES[@item_id].name
@@ -389,6 +400,7 @@ exports.Mob = Mob = serial.SerialType [
   [Vector, 'pos']
   [Vector, 'velocity']
   [serial.Int, 'health']
+  [serial.Int, 'maxhealth']
   [Inventory, 'inventory']
 ], {
   constructor: (@texture, @pos) ->
@@ -411,7 +423,45 @@ exports.Mob = Mob = serial.SerialType [
     ctx.strokeRect -SIZE / 2, -SIZE / 2, SIZE, SIZE
     ctx.rotate -cameraRotation
     ctx.drawImage @texture.get(), -SIZE/2, -SIZE, SIZE, SIZE
+    ctx.fillStyle = '#0F0'
+    ctx.fillRect -SIZE / 2, -SIZE - 5, SIZE * (@health / @maxhealth), 5
+    ctx.fillStyle = '#F00'
+    ctx.fillRect -SIZE / 2 + SIZE * (@health / @maxhealth), -SIZE - 5, SIZE * (1 - @health / @maxhealth), 5
     ctx.resetTransform()
+}
+
+# A kind of mob that spawns at one point
+exports.LurkingDenizen = LurkingDenizen = serial.SerialType Mob, [
+  [Vector, 'spawnPoint']
+  [serial.Float, 'speed']
+], {
+  constructor: (@texture, @spawnPoint, @speed, @weapon, inventory = []) ->
+    @pos = @spawnPoint.clone()
+    @velocity = new Vector 0, 0
+    @inventory = new Inventory(20)
+    @inventory.add @weapon
+    for item in inventory
+      @inventory.add item
+
+    @health = @maxhealth = 50
+
+    @timeUntilShoot = @weapon.cooldown()
+
+  tick: (board, mobs) ->
+    if mobs.length > 0
+      if @pos.distance(mobs[0].pos) >= @weapon.template().range
+        @velocity = @pos.to(mobs[0].pos).toMagnitude @speed
+      else
+        @velocity = @pos.to(mobs[0].pos).toMagnitude -@speed
+
+      if @timeUntilShoot <= 0
+        board.bullets.push @weapon.shoot @, @pos.to(mobs[0].pos)
+        @timeUntilShoot = @weapon.cooldown()
+      else
+        @timeUntilShoot--
+
+    else
+      @velocity = @pos.to(@spawnPoint).toMagnitude @speed
 }
 
 exports.Bullet = Bullet = serial.SerialType [
@@ -419,9 +469,11 @@ exports.Bullet = Bullet = serial.SerialType [
   [serial.Int, 'lifetime']
   [Vector, 'pos']
   [Vector, 'velocity']
+  [serial.Float, 'angle']
 ], {
-  constructor: (@player, @item, @pos, @velocity) ->
+  constructor: (@player, @item, @pos, @velocity, direction) ->
     @lifetime = @item.bulletLifetime()
+    @angle = Math.atan2 direction.y, direction.x
 
   tick: ->
     @lifetime--
@@ -436,11 +488,13 @@ exports.Bullet = Bullet = serial.SerialType [
 exports.BulletView = BulletView = serial.SerialType [
   [Vector, 'pos']
   [Vector, 'velocity']
+  [serial.Float, 'angle']
 ], {
   constructor: (bullet) ->
     if bullet?
       @pos = bullet.pos
       @velocity = bullet.velocity
+      @angle = bullet.angle
 
   tick: ->
     @lifetime--
@@ -452,9 +506,9 @@ exports.BulletView = BulletView = serial.SerialType [
     ctx.translate canvas.width / 2, canvas.height / 2
     ctx.rotate cameraRotation
     ctx.translate SIZE * (@pos.x - pos.x), SIZE * (@pos.y - pos.y)
-    ctx.rotate Math.atan2 @velocity.y, @velocity.x
+    ctx.rotate @angle
     ctx.fillStyle = '#FFF'
-    ctx.fillRect -SIZE, -2, SIZE, 4
+    ctx.fillRect -BULLET_WIDTH, -BULLET_HEIGHT / 2, BULLET_WIDTH, BULLET_HEIGHT
     ctx.resetTransform()
 }
 
@@ -462,7 +516,7 @@ exports.Player = Player = serial.SerialType Mob, [
 ], {
   constructor: ->
     @texture = new Texture 'wizard'
-    @health = 100
+    @health = @maxhealth = 100
     @pos = new Vector 250, 250 # TODO this is arbitrary
     @velocity = new Vector 0, 0
     @inventory = new Inventory()
@@ -533,6 +587,7 @@ ShadowQueue.NONE = 'NONE'
 exports.Board = class Board
   constructor: (@dimensions) ->
     @cells = ((new Tile(new Vector(i, j), null, null) for j in [0...@dimensions.y]) for i in [0...@dimensions.x])
+    @bullets = []
 
   getCircle: ({x, y}, r) ->
     x = Math.round(x); y = Math.round(y)
