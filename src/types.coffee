@@ -391,6 +391,8 @@ exports.TileView = TileView = serial.SerialType [
       # Draw first thing in the inventory, if existent
       ctx.rotate -cameraRotation
       if @item?
+        ctx.fillStyle = '#FFF'
+        ctx.fillRect -ITEMSIZE / 2, -ITEMSIZE / 2, ITEMSIZE, ITEMSIZE
         ctx.drawImage @item.get(), -ITEMSIZE / 2, -ITEMSIZE / 2, ITEMSIZE, ITEMSIZE
       ctx.resetTransform()
 }
@@ -401,6 +403,8 @@ exports.Mob = Mob = serial.SerialType [
   [Vector, 'velocity']
   [serial.Int, 'health']
   [serial.Int, 'maxhealth']
+  [serial.Int, 'mana']
+  [serial.Int, 'maxmana']
   [Inventory, 'inventory']
 ], {
   constructor: (@texture, @pos) ->
@@ -413,6 +417,13 @@ exports.Mob = Mob = serial.SerialType [
 
   damage: (n) ->
     @health -= n
+
+  consumeMana: (n) ->
+    if @mana > n
+      @mana -= n
+      return true
+    else
+      return false
 
   # Render works on the client only
   render: (canvas, ctx, cameraRotation, pos)->
@@ -444,18 +455,25 @@ exports.LurkingDenizen = LurkingDenizen = serial.SerialType Mob, [
       @inventory.add item
 
     @health = @maxhealth = 50
+    @mana = @maxmana = 50
 
     @timeUntilShoot = @weapon.cooldown()
 
   tick: (board, mobs) ->
+    @mana = Math.min @mana + 0.04, @maxmana
     if mobs.length > 0
-      if @pos.distance(mobs[0].pos) >= @weapon.template().range
+      if @pos.distance(mobs[0].pos) >= @weapon.template().range - 0.5
         @velocity = @pos.to(mobs[0].pos).toMagnitude @speed
       else
         @velocity = @pos.to(mobs[0].pos).toMagnitude -@speed
 
       if @timeUntilShoot <= 0
-        board.bullets.push @weapon.shoot @, @pos.to(mobs[0].pos)
+        bullet = @weapon.shoot @, @pos.to(mobs[0].pos)
+        if bullet?
+          if bullet.length?
+            board.bullets.push b for b in bullet
+          else
+            board.bullets.push bullet
         @timeUntilShoot = @weapon.cooldown()
       else
         @timeUntilShoot--
@@ -517,9 +535,13 @@ exports.Player = Player = serial.SerialType Mob, [
   constructor: ->
     @texture = new Texture 'wizard'
     @health = @maxhealth = 100
+    @mana = @maxmana = 100
     @pos = new Vector 250, 250 # TODO this is arbitrary
     @velocity = new Vector 0, 0
     @inventory = new Inventory()
+
+  tick: ->
+    @mana = Math.min @mana + 0.04, @maxmana
 }
 
 exports.VisionField = VisionField = serial.SerialType [

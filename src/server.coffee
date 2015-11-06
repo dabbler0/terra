@@ -32,22 +32,57 @@ BOARD.each (x, y, tile) ->
     if 200 < x < 300 and 200 < y < 300
       freeTiles.push [x, y]
 
-for [0...20]
-  position = freeTiles[Math.floor Math.random() * freeTiles.length]
-  console.log 'creating at', position
-  weapon = if Math.random() < 0.5 then new types.Item('Stone Spear') else new types.Item('Copper Sword')
-
-  MOBS.push denizen = new types.LurkingDenizen(
-    (new types.Texture 'warrior'),
+GOBLIN = (position) ->
+  new types.LurkingDenizen(
+    (new types.Texture 'goblin'),
     new types.Vector(position[0], position[1])
-    SPEED * 2 / 3,
-    weapon,
+    SPEED * 1.5,
+    new types.Item('Copper Dagger'),
     [
       new types.Item('Health Potion')
     ]
   )
 
-  console.log denizen.inventory
+SPEARGOBLIN = (position) ->
+  new types.LurkingDenizen(
+    (new types.Texture 'spear-goblin'),
+    new types.Vector(position[0], position[1])
+    SPEED,
+    new types.Item('Stone Spear'),
+    [
+      new types.Item('Health Potion')
+    ]
+  )
+
+WIZARD = (position) ->
+  if Math.random() < 0.5
+    new types.LurkingDenizen(
+      (new types.Texture 'blue-wizard'),
+      new types.Vector(position[0], position[1])
+      SPEED * 1 / 3,
+      new types.Item('Force Bolt'),
+      [
+        new types.Item('Health Potion')
+      ]
+    )
+  else
+    new types.LurkingDenizen(
+      (new types.Texture 'red-wizard'),
+      new types.Vector(position[0], position[1])
+      SPEED * 1 / 3,
+      new types.Item('Flare Spell'),
+      [
+        new types.Item('Health Potion')
+      ]
+    )
+
+MOBTYPES = [
+  GOBLIN, SPEARGOBLIN, WIZARD
+]
+
+for [0...15]
+  position = freeTiles[Math.floor Math.random() * freeTiles.length]
+  MOBS.push MOBTYPES[Math.floor Math.random() * MOBTYPES.length] position
 
 io.on 'connection', (socket) ->
   player = new types.Player()
@@ -60,6 +95,12 @@ io.on 'connection', (socket) ->
   player.inventory.add new types.Item 'Axe'
   player.inventory.add new types.Item 'Pickaxe'
   player.inventory.add new types.Item 'Copper Sword'
+  ###
+  # For wizards:
+  player.inventory.add new types.Item 'Deconstruction Spell'
+  player.inventory.add new types.Item 'Force Bolt'
+  player.inventory.add new types.Item 'Flare Spell'
+  ###
 
   socket.on 'move', (vector) ->
     player.velocity = types.Vector.parse(vector).value
@@ -135,7 +176,11 @@ io.on 'connection', (socket) ->
         if player.inventory.get(index)?.item_id is item.item_id
           bullet = item.shoot player, direction
           if bullet?
-            BOARD.bullets.push bullet
+            if bullet.length?
+              for b in bullet
+                BOARD.bullets.push b
+            else
+              BOARD.bullets.push bullet
 
         setTickTimeout consumeUsageQueue, item.cooldown()
 
@@ -174,7 +219,9 @@ emit = ->
     field = new types.VisionField tileVision, mobVision, bulletVision
 
     player.socket.emit 'update', {
+      time,
       health: player.player.health
+      mana: player.player.mana
       pos: player.player.pos.serialize()
       vel: player.player.velocity.serialize()
       vision: (buffer = field.serialize())
@@ -213,6 +260,8 @@ sim = ->
     types.translateOKComponent BOARD, mob.pos, mob.velocity
 
   BOARD.bullets = BOARD.bullets.filter (bullet) ->
+    unless bullet?
+      console.log BOARD.bullets
     bullet.tick()
 
     if bullet.lifetime < 0

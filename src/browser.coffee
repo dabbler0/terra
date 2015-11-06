@@ -5,6 +5,9 @@ items = require './items.coffee'
 healthBar = $ '#health-bar'
 healthIndicator = $ '#health-indicator'
 
+manaBar = $ '#mana-bar'
+manaIndicator = $ '#mana-indicator'
+
 VISION_MAX = 11
 FRAME_RATE = 30
 SIM_RATE = 50
@@ -36,16 +39,33 @@ MOUSEDOWN = false
 
 socket = null
 
+scheduledActions = {}
+
+time = 0
+
+setServerTickTimeout = (fn, ticks) ->
+  scheduledActions[time + ticks] ?= []
+  scheduledActions[time + ticks].push fn
+
 assets.loadAssets ->
   socket = io()
 
   socket.on 'update', (data) ->
+    time = data.time
+    # Perform all the timeouts
+    for key, val of scheduledActions when key < time
+      for fn in scheduledActions[key]
+        fn()
+      delete scheduledActions[key]
+
     PLAYER.pos = types.Vector.parse(data.pos).value
     PLAYER.velocity = types.Vector.parse(data.vel).value
 
     field = types.VisionField.parse(data.vision).value
     healthBar.width 190 * data.health / 100
     healthIndicator.text "#{data.health}/100"
+    manaBar.width 190 * data.mana / 100
+    manaIndicator.text "#{Math.round(data.mana)}/100"
     BOARD.update field.tiles
     MOBS = field.mobs
     BULLETS = field.bullets
@@ -274,6 +294,6 @@ toolUseTick = ->
             index: USING_ITEM
           }
 
-        setTimeout toolUseTick, item.cooldown() * 1000 / SERVER_SIM_RATE
+        setServerTickTimeout toolUseTick, item.cooldown()
         return
   setTimeout toolUseTick, 1000 / FRAME_RATE

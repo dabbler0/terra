@@ -24,6 +24,14 @@ exports.RESOURCES = RESOURCES = [
   '/assets/sword.png'
   '/assets/warrior.png'
   '/assets/red-potion.png'
+  '/assets/dagger.png'
+  '/assets/force-bolt.png'
+  '/assets/black-spell.png'
+  '/assets/fire-spell.png'
+  '/assets/goblin.png'
+  '/assets/spear-goblin.png'
+  '/assets/blue-wizard.png'
+  '/assets/red-wizard.png'
 ]
 
 # loadAssets, which works on client-side only
@@ -65,4 +73,12 @@ exports.TEXTURE_IDS = {
   'sword': 22
   'warrior': 23
   'red-potion': 24
+  'dagger': 25
+  'force-bolt': 26
+  'black-spell': 27
+  'fire-spell': 28
+  'goblin': 29
+  'spear-goblin': 30
+  'blue-wizard': 31
+  'red-wizard': 32
 }

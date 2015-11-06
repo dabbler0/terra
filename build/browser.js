@@ -1298,7 +1298,7 @@ module.exports = isArray || function (val) {
 },{}],5:[function(require,module,exports){
 var RESOURCES;
 
-exports.RESOURCES = RESOURCES = ['/assets/wizard.png', '/assets/stone.png', '/assets/dirt.png', '/assets/grass.png', '/assets/black.png', '/assets/tree-top.png', '/assets/tree-side.png', '/assets/axe.png', '/assets/wood.png', '/assets/crack1.png', '/assets/crack2.png', '/assets/crack3.png', '/assets/pickaxe.png', '/assets/planks.png', '/assets/tile.png', '/assets/door-side.png', '/assets/door-top.png', '/assets/transparent.png', '/assets/rock.png', '/assets/spear.png', '/assets/bow.png', '/assets/arrow.png', '/assets/sword.png', '/assets/warrior.png', '/assets/red-potion.png'];
+exports.RESOURCES = RESOURCES = ['/assets/wizard.png', '/assets/stone.png', '/assets/dirt.png', '/assets/grass.png', '/assets/black.png', '/assets/tree-top.png', '/assets/tree-side.png', '/assets/axe.png', '/assets/wood.png', '/assets/crack1.png', '/assets/crack2.png', '/assets/crack3.png', '/assets/pickaxe.png', '/assets/planks.png', '/assets/tile.png', '/assets/door-side.png', '/assets/door-top.png', '/assets/transparent.png', '/assets/rock.png', '/assets/spear.png', '/assets/bow.png', '/assets/arrow.png', '/assets/sword.png', '/assets/warrior.png', '/assets/red-potion.png', '/assets/dagger.png', '/assets/force-bolt.png', '/assets/black-spell.png', '/assets/fire-spell.png', '/assets/goblin.png', '/assets/spear-goblin.png', '/assets/blue-wizard.png', '/assets/red-wizard.png'];
 
 exports.loadAssets = function(cb) {
   var i, loaded, resource, _i, _len, _results;
@@ -1344,7 +1344,15 @@ exports.TEXTURE_IDS = {
   'arrow': 21,
   'sword': 22,
   'warrior': 23,
-  'red-potion': 24
+  'red-potion': 24,
+  'dagger': 25,
+  'force-bolt': 26,
+  'black-spell': 27,
+  'fire-spell': 28,
+  'goblin': 29,
+  'spear-goblin': 30,
+  'blue-wizard': 31,
+  'red-wizard': 32
 };
 
 
@@ -1406,7 +1414,7 @@ exports.encode = function base64ArrayBuffer(arrayBuffer) {
 }
 
 },{}],7:[function(require,module,exports){
-var BOARD, BULLETS, FRAME_RATE, ITEM_DISPLAY_SIZE, MOBS, MOUSEDOWN, MOUSE_POS, PLAYER, RANGE, RAW_MOUSE_POS, ROTATION, SERVER_SIM_RATE, SIM_RATE, SIZE, SPEED, STARTED, TARGET_FLASHING, TARGET_FLASH_TIME, USING_ITEM, VISION_MAX, assets, canvas, ctx, getRecipes, getTarget, healthBar, healthIndicator, i, inventoryCanvases, inventoryList, inventoryTable, items, j, recipeList, redrawInventory, renderRecipes, socket, start, tick, toolUseTick, tr, types, updateMousePos, _fn, _i, _j;
+var BOARD, BULLETS, FRAME_RATE, ITEM_DISPLAY_SIZE, MOBS, MOUSEDOWN, MOUSE_POS, PLAYER, RANGE, RAW_MOUSE_POS, ROTATION, SERVER_SIM_RATE, SIM_RATE, SIZE, SPEED, STARTED, TARGET_FLASHING, TARGET_FLASH_TIME, USING_ITEM, VISION_MAX, assets, canvas, ctx, getRecipes, getTarget, healthBar, healthIndicator, i, inventoryCanvases, inventoryList, inventoryTable, items, j, manaBar, manaIndicator, recipeList, redrawInventory, renderRecipes, scheduledActions, setServerTickTimeout, socket, start, tick, time, toolUseTick, tr, types, updateMousePos, _fn, _i, _j;
 
 types = require('./types.coffee');
 
@@ -1417,6 +1425,10 @@ items = require('./items.coffee');
 healthBar = $('#health-bar');
 
 healthIndicator = $('#health-indicator');
+
+manaBar = $('#mana-bar');
+
+manaIndicator = $('#mana-indicator');
 
 VISION_MAX = 11;
 
@@ -1466,15 +1478,42 @@ MOUSEDOWN = false;
 
 socket = null;
 
+scheduledActions = {};
+
+time = 0;
+
+setServerTickTimeout = function(fn, ticks) {
+  var _name;
+  if (scheduledActions[_name = time + ticks] == null) {
+    scheduledActions[_name] = [];
+  }
+  return scheduledActions[time + ticks].push(fn);
+};
+
 assets.loadAssets(function() {
   socket = io();
   socket.on('update', function(data) {
-    var field;
+    var field, fn, key, val, _i, _len, _ref;
+    time = data.time;
+    for (key in scheduledActions) {
+      val = scheduledActions[key];
+      if (!(key < time)) {
+        continue;
+      }
+      _ref = scheduledActions[key];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        fn = _ref[_i];
+        fn();
+      }
+      delete scheduledActions[key];
+    }
     PLAYER.pos = types.Vector.parse(data.pos).value;
     PLAYER.velocity = types.Vector.parse(data.vel).value;
     field = types.VisionField.parse(data.vision).value;
     healthBar.width(190 * data.health / 100);
     healthIndicator.text("" + data.health + "/100");
+    manaBar.width(190 * data.mana / 100);
+    manaIndicator.text("" + (Math.round(data.mana)) + "/100");
     BOARD.update(field.tiles);
     MOBS = field.mobs;
     BULLETS = field.bullets;
@@ -1753,7 +1792,7 @@ toolUseTick = function() {
             index: USING_ITEM
           });
         }
-        setTimeout(toolUseTick, item.cooldown() * 1000 / SERVER_SIM_RATE);
+        setServerTickTimeout(toolUseTick, item.cooldown());
         return;
       }
     }
@@ -1857,6 +1896,82 @@ item('Stone Spear', {
   cooldown: 25
 });
 
+item('Copper Dagger', {
+  texture: assets.TEXTURE_IDS['dagger'],
+  shoot: function(player, direction) {
+    return new types.Bullet(player, this, player.pos.clone(), direction.normalize().mult(0.5).add(player.velocity), direction.clone());
+  },
+  bulletLifetime: 2,
+  range: 1,
+  bulletStrike: function(player, mob) {
+    if (mob !== player) {
+      mob.damage(1 * d(3));
+      return true;
+    }
+    return false;
+  },
+  cooldown: 5
+});
+
+item('Flare Spell', {
+  texture: assets.TEXTURE_IDS['fire-spell'],
+  shoot: function(player, direction) {
+    var angle, resultAngles;
+    if (player.consumeMana(3)) {
+      angle = Math.atan2(direction.y, direction.x);
+      resultAngles = [angle - 0.1, angle, angle + 0.1];
+      return resultAngles.map((function(_this) {
+        return function(ang) {
+          return new types.Bullet(player, _this, player.pos.clone(), (new types.Vector(Math.cos(ang), Math.sin(ang))).mult(0.5).add(player.velocity), direction.clone());
+        };
+      })(this));
+    } else {
+
+    }
+  },
+  bulletLifetime: 30,
+  range: 15,
+  bulletStrike: function(player, mob) {
+    if (mob !== player) {
+      mob.damage(1 * d(2));
+      return true;
+    }
+    return false;
+  },
+  cooldown: 5
+});
+
+item('Force Bolt', {
+  texture: assets.TEXTURE_IDS['force-bolt'],
+  shoot: function(player, direction) {
+    if (player.consumeMana(10)) {
+      return new types.Bullet(player, this, player.pos.clone(), direction.normalize().mult(0.5).add(player.velocity), direction.clone());
+    } else {
+      return null;
+    }
+  },
+  bulletLifetime: 30,
+  range: 15,
+  bulletStrike: function(player, mob) {
+    if (mob !== player) {
+      mob.damage(3 * d(10));
+      return true;
+    }
+    return false;
+  },
+  cooldown: 50
+});
+
+item('Deconstruction Spell', {
+  texture: assets.TEXTURE_IDS['black-spell'],
+  useOnTile: function(player, tile) {
+    if (player.consumeMana(2)) {
+      return tile.damageObstacle(1 * d(10));
+    }
+  },
+  cooldown: 10
+});
+
 item('Copper Sword', {
   texture: assets.TEXTURE_IDS['sword'],
   shoot: function(player, direction) {
@@ -1878,21 +1993,21 @@ item('Wood Bow', {
   texture: assets.TEXTURE_IDS['bow'],
   shoot: function(player, direction) {
     if (player.inventory.removeType(ITEM_NAMES['Stone Arrow'])) {
-      return new types.Bullet(player, this, player.pos.clone(), direction.normalize().mult(0.3).add(player.velocity), direction.clone());
+      return new types.Bullet(player, this, player.pos.clone(), direction.normalize().mult(0.5).add(player.velocity), direction.clone());
     } else {
       return null;
     }
   },
-  bulletLifetime: 50,
+  bulletLifetime: 30,
   range: 15,
   bulletStrike: function(player, mob) {
     if (mob !== player) {
-      mob.damage(1 * d(3));
+      mob.damage(3 * d(10));
       return true;
     }
     return false;
   },
-  cooldown: 50
+  cooldown: 35
 });
 
 item('Stone Arrow', {
@@ -2154,7 +2269,7 @@ recipe({
   'Wood Plank': 1,
   'Rock': 1
 }, {
-  'Stone Arrow': 2
+  'Stone Arrow': 5
 });
 
 recipe({
@@ -3072,6 +3187,8 @@ exports.TileView = TileView = serial.SerialType([[BoardCoordinate, 'pos'], [Text
       ctx.drawImage(terrain, -SIZE / 2, -SIZE / 2, SIZE, SIZE);
       ctx.rotate(-cameraRotation);
       if (this.item != null) {
+        ctx.fillStyle = '#FFF';
+        ctx.fillRect(-ITEMSIZE / 2, -ITEMSIZE / 2, ITEMSIZE, ITEMSIZE);
         ctx.drawImage(this.item.get(), -ITEMSIZE / 2, -ITEMSIZE / 2, ITEMSIZE, ITEMSIZE);
       }
       return ctx.resetTransform();
@@ -3079,7 +3196,7 @@ exports.TileView = TileView = serial.SerialType([[BoardCoordinate, 'pos'], [Text
   }
 });
 
-exports.Mob = Mob = serial.SerialType([[Texture, 'texture'], [Vector, 'pos'], [Vector, 'velocity'], [serial.Int, 'health'], [serial.Int, 'maxhealth'], [Inventory, 'inventory']], {
+exports.Mob = Mob = serial.SerialType([[Texture, 'texture'], [Vector, 'pos'], [Vector, 'velocity'], [serial.Int, 'health'], [serial.Int, 'maxhealth'], [serial.Int, 'mana'], [serial.Int, 'maxmana'], [Inventory, 'inventory']], {
   constructor: function(texture, pos) {
     this.texture = texture;
     this.pos = pos;
@@ -3092,6 +3209,14 @@ exports.Mob = Mob = serial.SerialType([[Texture, 'texture'], [Vector, 'pos'], [V
   },
   damage: function(n) {
     return this.health -= n;
+  },
+  consumeMana: function(n) {
+    if (this.mana > n) {
+      this.mana -= n;
+      return true;
+    } else {
+      return false;
+    }
   },
   render: function(canvas, ctx, cameraRotation, pos) {
     ctx.translate(canvas.width / 2, canvas.height / 2);
@@ -3128,17 +3253,30 @@ exports.LurkingDenizen = LurkingDenizen = serial.SerialType(Mob, [[Vector, 'spaw
       this.inventory.add(item);
     }
     this.health = this.maxhealth = 50;
+    this.mana = this.maxmana = 50;
     return this.timeUntilShoot = this.weapon.cooldown();
   },
   tick: function(board, mobs) {
+    var b, bullet, _i, _len;
+    this.mana = Math.min(this.mana + 0.04, this.maxmana);
     if (mobs.length > 0) {
-      if (this.pos.distance(mobs[0].pos) >= this.weapon.template().range) {
+      if (this.pos.distance(mobs[0].pos) >= this.weapon.template().range - 0.5) {
         this.velocity = this.pos.to(mobs[0].pos).toMagnitude(this.speed);
       } else {
         this.velocity = this.pos.to(mobs[0].pos).toMagnitude(-this.speed);
       }
       if (this.timeUntilShoot <= 0) {
-        board.bullets.push(this.weapon.shoot(this, this.pos.to(mobs[0].pos)));
+        bullet = this.weapon.shoot(this, this.pos.to(mobs[0].pos));
+        if (bullet != null) {
+          if (bullet.length != null) {
+            for (_i = 0, _len = bullet.length; _i < _len; _i++) {
+              b = bullet[_i];
+              board.bullets.push(b);
+            }
+          } else {
+            board.bullets.push(bullet);
+          }
+        }
         return this.timeUntilShoot = this.weapon.cooldown();
       } else {
         return this.timeUntilShoot--;
@@ -3199,9 +3337,13 @@ exports.Player = Player = serial.SerialType(Mob, [], {
   constructor: function() {
     this.texture = new Texture('wizard');
     this.health = this.maxhealth = 100;
+    this.mana = this.maxmana = 100;
     this.pos = new Vector(250, 250);
     this.velocity = new Vector(0, 0);
     return this.inventory = new Inventory();
+  },
+  tick: function() {
+    return this.mana = Math.min(this.mana + 0.04, this.maxmana);
   }
 });
 

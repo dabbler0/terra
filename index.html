@@ -27,20 +27,24 @@
       #status-bars {
         padding: 5px;
       }
-      #health-wrapper {
+      #health-wrapper, #mana-wrapper {
+        position: relative;
         width: 190px;
         height: 20px;
       }
-      #health-indicator {
+      #health-indicator, #mana-indicator {
         position: absolute;
         z-index: 2;
       }
-      #health-bar {
+      #health-bar, #mana-bar {
         z-index: 1;
         background-color: #F00;
         width: 190px;
         height: 20px;
         position: absolute;
+      }
+      #mana-bar {
+        background-color: #00F;
       }
     </style>
     <link rel="stylesheet" href="bower_components/bootstrap/dist/css/bootstrap.min.css"/>
@@ -79,6 +83,7 @@
           <td style='background-color: #777; vertical-align: top; width: 200px;'>
             <div id="status-bars">
               <div id="health-wrapper"><span id="health-indicator"></span><div id="health-bar"></div></div>
+              <div id="mana-wrapper"><span id="mana-indicator"></span><div id="mana-bar"></div></div>
             </div>
             <center id='inventory-list'></center>
             <center id='recipe-list'></center>
@@ -86,8 +91,7 @@
           <td><canvas id="viewport" width="600" height="600" style='background-color:#000'></canvas></td>
       </table>
       <div>
-        <p>WASD to move, click inventory items and click tiles on the screen to use, click recipes below the inventory to craft, XZ to pick up or drop, mouse wheel to rotate camera.</p>
-        <p>Tips: There's a mountain to the northeast with some stone to mine. Enemies drop their weapons and some health potions, make sure to pick them up.</p>
+        <p>WASD to move, click inventory items and click tiles on the screen to use, click recipes below the inventory to craft, XZ to pick up or drop, mouse wheel to rotate camera. Tips: There's a mountain to the northeast with some stone to mine. Try to make a house and a bow. Enemies drop their weapons and some health potions, make sure to pick them up.</p>
         <p>A work in progress by <a href="http://dabbler0.github.io/hack-per-day">Anthony Bau</a></p>
       </div>
     </center>

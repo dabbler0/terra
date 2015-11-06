@@ -66,7 +66,11 @@ item 'Stone Spear',
   texture: assets.TEXTURE_IDS['spear']
 
   shoot: (player, direction) ->
-    new types.Bullet(player, @, player.pos.clone(), direction.normalize().mult(0.3).add(player.velocity), direction.clone())
+    new types.Bullet(player, @,
+      player.pos.clone(),
+      direction.normalize().mult(0.3).add(player.velocity),
+      direction.clone()
+    )
 
   bulletLifetime: 15
   range: 4.5 # TODO automatically compute this so it is correct
@@ -78,6 +82,80 @@ item 'Stone Spear',
     return false
 
   cooldown: 25
+
+item 'Copper Dagger',
+  texture: assets.TEXTURE_IDS['dagger']
+
+  shoot: (player, direction) ->
+    new types.Bullet(player, @, player.pos.clone(), direction.normalize().mult(0.5).add(player.velocity), direction.clone())
+
+  bulletLifetime: 2
+  range: 1 # TODO automatically compute this so it is correct
+
+  bulletStrike: (player, mob) ->
+    unless mob is player
+      mob.damage 1 * d(3)
+      return true
+    return false
+
+  cooldown: 5
+
+item 'Flare Spell',
+  texture: assets.TEXTURE_IDS['fire-spell']
+
+  shoot: (player, direction) ->
+    if player.consumeMana(3)
+      angle = Math.atan2 direction.y, direction.x
+      resultAngles = [angle - 0.1, angle, angle + 0.1]
+
+      return resultAngles.map (ang) =>
+        new types.Bullet(player, @,
+          player.pos.clone(),
+          (new types.Vector(Math.cos(ang), Math.sin(ang))).mult(0.5).add(player.velocity),
+          direction.clone()
+        )
+    else
+      return
+
+  bulletLifetime: 30
+  range: 15 # TODO automatically compute this so it is correct
+
+  bulletStrike: (player, mob) ->
+    unless mob is player
+      mob.damage 1 * d(2)
+      return true
+    return false
+
+  cooldown: 5
+
+item 'Force Bolt',
+  texture: assets.TEXTURE_IDS['force-bolt']
+
+  shoot: (player, direction) ->
+    if player.consumeMana(10)
+      return new types.Bullet(player, @, player.pos.clone(), direction.normalize().mult(0.5).add(player.velocity), direction.clone())
+    else
+      return null
+
+  bulletLifetime: 30
+  range: 15 # TODO automatically compute this so it is correct
+
+  bulletStrike: (player, mob) ->
+    unless mob is player
+      mob.damage 3 * d(10)
+      return true
+    return false
+
+  cooldown: 50
+
+item 'Deconstruction Spell',
+  texture: assets.TEXTURE_IDS['black-spell']
+
+  useOnTile: (player, tile) ->
+    if player.consumeMana 2
+      tile.damageObstacle 1 * d(10)
+
+  cooldown: 10
 
 item 'Copper Sword',
   texture: assets.TEXTURE_IDS['sword']
@@ -101,20 +179,20 @@ item 'Wood Bow',
 
   shoot: (player, direction) ->
     if player.inventory.removeType ITEM_NAMES['Stone Arrow']
-      return new types.Bullet(player, @, player.pos.clone(), direction.normalize().mult(0.3).add(player.velocity), direction.clone())
+      return new types.Bullet(player, @, player.pos.clone(), direction.normalize().mult(0.5).add(player.velocity), direction.clone())
     else
       return null
 
-  bulletLifetime: 50
+  bulletLifetime: 30
   range: 15
 
   bulletStrike: (player, mob) ->
     unless mob is player
-      mob.damage 1 * d(3)
+      mob.damage 3 * d(10)
       return true
     return false
 
-  cooldown: 50
+  cooldown: 35
 
 item 'Stone Arrow',
   texture: assets.TEXTURE_IDS['arrow']
@@ -334,7 +412,7 @@ recipe {
   'Wood Plank': 1
   'Rock': 1
 }, {
-  'Stone Arrow': 2
+  'Stone Arrow': 5
 }
 
 recipe {
